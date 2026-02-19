@@ -24,9 +24,9 @@ type Track = (typeof TRACKS)[number];
 
 const TRACK_COLORS: Record<Track, string> = {
   eCKM: "#4F46E5",
-  CKM: "#9333EA",
-  MSK: "#10B981",
-  BH: "#f97316",
+  CKM: "#7C3AED",
+  MSK: "#A855F7",
+  BH: "#C084FC",
 };
 
 const RURAL_MEDICARE = 12;
@@ -640,6 +640,7 @@ function PctSlider({
         value={value}
         onChange={(e) => onChange(parseFloat(e.target.value))}
         className="flex-1"
+        style={{ accentColor: "#A855F7" }}
       />
       <input
         type="number"
@@ -663,10 +664,10 @@ function TrackFilter({
   onChange: (t: Track[]) => void;
 }) {
   const pillColors: Record<Track, string> = {
-    eCKM: "bg-blue-100 text-blue-800 border-blue-300",
-    CKM: "bg-purple-100 text-purple-800 border-purple-300",
-    MSK: "bg-green-100 text-green-800 border-green-300",
-    BH: "bg-orange-100 text-orange-800 border-orange-300",
+    eCKM: "bg-indigo-100 text-indigo-800 border-indigo-300",
+    CKM: "bg-violet-100 text-violet-800 border-violet-300",
+    MSK: "bg-fuchsia-100 text-fuchsia-800 border-fuchsia-300",
+    BH: "bg-purple-100 text-purple-700 border-purple-300",
   };
 
   const toggle = (t: Track) => {
@@ -684,8 +685,9 @@ function TrackFilter({
       <button
         onClick={() => onChange(allOn ? [TRACKS[0]] : [...TRACKS])}
         className={`text-xs px-2 py-0.5 rounded border ${
-          allOn ? "bg-gray-700 text-white border-gray-700" : "bg-white text-gray-800 border-gray-300"
+          allOn ? "text-white border-transparent" : "bg-white text-gray-800 border-gray-300"
         }`}
+        style={allOn ? { backgroundImage: "var(--pearl-gradient)" } : undefined}
       >
         All
       </button>
@@ -989,7 +991,8 @@ export default function App() {
                       }));
                     } else set("penetrationMode", "uniform");
                   }}
-                  className={`px-2 py-1 rounded text-xs ${inp.penetrationMode === m ? "bg-blue-600 text-white" : "bg-gray-200"}`}
+                  className={`px-2 py-1 rounded text-xs ${inp.penetrationMode === m ? "text-white" : "bg-gray-200"}`}
+                  style={inp.penetrationMode === m ? { backgroundImage: "var(--pearl-gradient)" } : undefined}
                 >
                   {m === "uniform" ? "Uniform" : "Per Track"}
                 </button>
@@ -1031,6 +1034,7 @@ export default function App() {
                 value={inp.rampPeriod}
                 onChange={(e) => set("rampPeriod", parseInt(e.target.value))}
                 className="flex-1"
+                style={{ accentColor: "#A855F7" }}
               />
               <span className="text-sm font-medium w-10">{inp.rampPeriod} mo</span>
             </div>
@@ -1046,8 +1050,9 @@ export default function App() {
                       setInp((p) => ({ ...p, controlGroupByYear: { ...p.controlGroupByYear, [yr]: !p.controlGroupByYear[yr] } }))
                     }
                     className={`px-3 py-0.5 rounded text-xs font-medium ${
-                      inp.controlGroupByYear[yr] ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-800"
+                      inp.controlGroupByYear[yr] ? "text-white" : "bg-gray-200 text-gray-800"
                     }`}
+                    style={inp.controlGroupByYear[yr] ? { backgroundImage: "var(--pearl-gradient)" } : undefined}
                   >
                     {inp.controlGroupByYear[yr] ? "ON (10% excluded)" : "OFF"}
                   </button>
@@ -1085,8 +1090,9 @@ export default function App() {
             <button
               onClick={() => set("costSharingWaived", !inp.costSharingWaived)}
               className={`px-3 py-1 rounded text-sm font-medium ${
-                inp.costSharingWaived ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-700"
+                inp.costSharingWaived ? "text-white" : "bg-gray-200 text-gray-700"
               }`}
+              style={inp.costSharingWaived ? { backgroundImage: "var(--pearl-gradient)" } : undefined}
             >
               {inp.costSharingWaived ? "Waive (Medicare 80%)" : "Collect (100%)"}
             </button>
@@ -1206,7 +1212,7 @@ export default function App() {
                   dataKey={t}
                   stackId="a"
                   fill={TRACK_COLORS[t]}
-                  radius={[8, 8, 0, 0]}
+                  radius={[4, 4, 0, 0]}
                 />
               ))}
             </BarChart>
@@ -1289,6 +1295,7 @@ export default function App() {
                   onChange={(e) =>
                     setSensitivityConfig((prev) => ({ ...prev, showHeatmap: e.target.checked }))
                   }
+                  style={{ accentColor: "#A855F7" }}
                 />
                 Show as heatmap shading
               </label>
@@ -1410,7 +1417,8 @@ export default function App() {
             </button>
             <button
               onClick={() => sensitivityResult && downloadSensitivityCSV(sensitivityResult)}
-              className="text-xs bg-gray-700 text-white px-3 py-1 rounded hover:bg-gray-800 disabled:opacity-50"
+              className="text-xs text-white px-3 py-1 rounded hover:opacity-90 disabled:opacity-50"
+              style={{ backgroundImage: "var(--pearl-gradient)" }}
               disabled={!sensitivityResult}
             >
               Download CSV

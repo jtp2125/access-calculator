@@ -21,7 +21,11 @@
 }
 
 body {
-  background: var(--background);
+  background-color: var(--background);
+  background-image: url("/pearl-swirl.png");
+  background-attachment: fixed;
+  background-size: cover;
+  background-position: center;
   color: var(--foreground);
   font-family: var(--font-geist-sans), sans-serif;
   position: relative;
@@ -31,11 +35,7 @@ body::before {
   content: "";
   position: fixed;
   inset: 0;
-  background-image: url("/Pearl swirl.png");
-  background-attachment: fixed;
-  background-size: cover;
-  background-position: center;
-  opacity: 0.08;
+  background: rgba(248, 250, 252, 0.94);
   pointer-events: none;
   z-index: -1;
 }
