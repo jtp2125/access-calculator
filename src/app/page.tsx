@@ -39,8 +39,8 @@ const COHORT_YEAR: Record<1 | 2 | 3, "Y1" | "Y2" | "Y3"> = {
 };
 
 const DEFAULTS = {
-  totalPanel: 182774,
-  eligible: { eCKM: 89703, CKM: 107862, MSK: 69416, BH: 83044 },
+  totalPanel: 250000,
+  eligible: { eCKM: 125000, CKM: 150000, MSK: 100000, BH: 112500 },
   growthY2: 0.4,
   growthY3: 0.4,
   penetrationMode: "uniform" as "uniform" | "perTrack",
