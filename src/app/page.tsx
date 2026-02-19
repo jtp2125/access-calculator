@@ -1426,11 +1426,12 @@ export default function App() {
                       <th className="text-left px-2 py-1 border-b border-r">Adoption \ Pearl Share</th>
                       {sensitivityResult.pearlShareValues.map((ps) => {
                         const colMatch = isSensitivityMatch(ps, currentPearlShare);
+                        const colShadow = colMatch ? "inset 2px 0 0 #222, inset -2px 0 0 #222, inset 0 2px 0 #222" : undefined;
                         return (
                           <th
                             key={ps}
                             className={`text-right px-2 py-1 border-b ${colMatch ? "font-bold" : ""}`}
-                            style={colMatch ? { boxShadow: "inset 0 0 0 2px #222" } : undefined}
+                            style={colShadow ? { boxShadow: colShadow } : undefined}
                           >
                             {(ps * 100).toFixed(1)}%
                           </th>
@@ -1447,31 +1448,37 @@ export default function App() {
                         <tr key={adoptionValue} className="border-t">
                           <td
                             className={`px-2 py-1 font-medium border-r ${rowMatch ? "font-bold" : ""}`}
-                            style={rowMatch ? { boxShadow: "inset 0 0 0 2px #222" } : undefined}
+                            style={rowMatch ? { boxShadow: "inset 2px 0 0 #222, inset -2px 0 0 #222, inset 0 2px 0 #222, inset 0 -2px 0 #222" } : undefined}
                           >
                             {(adoptionValue * 100).toFixed(1)}%
                           </td>
-                          {row.map((cell) => {
+                          {row.map((cell, colIdx) => {
                             const span = sensitivityResult.max - sensitivityResult.min;
                             const norm = span > 0 ? (cell.value - sensitivityResult.min) / span : 0;
                             const bg = sensitivityConfig.showHeatmap
-                              ? interpolateColor([255, 255, 255], [46, 107, 79], norm)
+                              ? interpolateColor([255, 255, 255], [132, 193, 165], norm)
                               : "transparent";
-                            const textClass = sensitivityConfig.showHeatmap && norm > 0.72 ? "text-white" : "text-gray-900";
                             const colMatch = isSensitivityMatch(cell.pearlShare, currentPearlShare);
-                            const intersectMatch = rowMatch && colMatch;
+                            const isLastRow = rowIdx === sensitivityResult.rows.length - 1;
+                            const isLastCol = colIdx === row.length - 1;
+
+                            const outlineSegments: string[] = [];
+                            if (rowMatch) {
+                              outlineSegments.push("inset 0 2px 0 #222", "inset 0 -2px 0 #222");
+                              if (isLastCol) outlineSegments.push("inset -2px 0 0 #222");
+                            }
+                            if (colMatch) {
+                              outlineSegments.push("inset 2px 0 0 #222", "inset -2px 0 0 #222");
+                              if (isLastRow) outlineSegments.push("inset 0 -2px 0 #222");
+                            }
 
                             return (
                               <td
                                 key={`${cell.adoption}-${cell.pearlShare}`}
-                                className={`px-2 py-1 text-right tabular-nums ${textClass}`}
+                                className="px-2 py-1 text-right tabular-nums text-gray-900"
                                 style={{
                                   backgroundColor: bg,
-                                  boxShadow: intersectMatch
-                                    ? "inset 0 0 0 3px #111"
-                                    : rowMatch || colMatch
-                                      ? "inset 0 0 0 2px #222"
-                                      : undefined,
+                                  boxShadow: outlineSegments.length > 0 ? outlineSegments.join(", ") : undefined,
                                 }}
                                 title={`Adoption ${(cell.adoption * 100).toFixed(1)}%, Pearl Share ${(cell.pearlShare * 100).toFixed(1)}%, Value ${fmtCurrency(cell.value)}`}
                               >
@@ -1489,7 +1496,7 @@ export default function App() {
               {sensitivityConfig.showHeatmap && (
                 <div className="flex items-center gap-2 text-xs text-gray-700">
                   <span>Low</span>
-                  <div className="h-2 w-32 rounded" style={{ background: "linear-gradient(to right, rgb(255,255,255), rgb(46,107,79))" }} />
+                  <div className="h-2 w-32 rounded" style={{ background: "linear-gradient(to right, rgb(255,255,255), rgb(132,193,165))" }} />
                   <span>High</span>
                 </div>
               )}
