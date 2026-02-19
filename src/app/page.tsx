@@ -115,6 +115,36 @@ type FullRow = MonthlyRow & {
   c3NewlyEnrolled: number;
 };
 
+type ModelOutputs = ReturnType<typeof runModel>;
+type Horizon = "Y1" | "Y2" | "Y3" | "TOTAL";
+
+type SensitivityRange = {
+  min: number;
+  max: number;
+  step: number;
+};
+
+type SensitivityConfig = {
+  horizon: Horizon;
+  pearlShare: SensitivityRange;
+  adoption: SensitivityRange;
+  showHeatmap: boolean;
+};
+
+type GridCell = {
+  adoption: number;
+  pearlShare: number;
+  value: number;
+};
+
+type SensitivityResult = {
+  adoptionValues: number[];
+  pearlShareValues: number[];
+  rows: GridCell[][];
+  min: number;
+  max: number;
+};
+
 function runModel(inp: Inputs, activeTracks: Track[]) {
   const tracks: Track[] = activeTracks.length > 0 ? activeTracks : [...TRACKS];
 
@@ -447,10 +477,68 @@ function runModel(inp: Inputs, activeTracks: Track[]) {
 const fmt$ = (v: number) =>
   v >= 1e6 ? `$${(v / 1e6).toFixed(2)}M` : v >= 1e3 ? `$${(v / 1e3).toFixed(1)}K` : `$${v.toFixed(0)}`;
 
+const fmtCurrency = (v: number) =>
+  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(v);
+
 const fmtPct = (v: number) => `${(v * 100).toFixed(1)}%`;
 const fmtInt = (v: number) => Math.round(v).toLocaleString();
 const fmtYAxis = (v: number) =>
   v >= 1e6 ? `$${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `$${(v / 1e3).toFixed(0)}K` : `$${v}`;
+
+function computePearlRevenueForHorizon(outputs: ModelOutputs, horizon: Horizon): number {
+  switch (horizon) {
+    case "Y1":
+      return outputs.kpi.pearlY1;
+    case "Y2":
+      return outputs.kpi.pearlY2;
+    case "Y3":
+      return outputs.kpi.pearlY3;
+    default:
+      return outputs.kpi.pearl3Y;
+  }
+}
+
+function generatePercentRange(min: number, max: number, step: number): number[] {
+  if (step <= 0 || max < min) return [];
+  const values: number[] = [];
+  const epsilon = 1e-8;
+  for (let v = min; v <= max + epsilon; v += step) {
+    const clamped = Math.min(Math.max(v, 0), 1);
+    values.push(Number(clamped.toFixed(6)));
+  }
+  return values;
+}
+
+
+function isSensitivityMatch(a: number, b: number, tolerance = 0.0005): boolean {
+  return Math.abs(a - b) <= tolerance;
+}
+
+function interpolateColor(start: [number, number, number], end: [number, number, number], t: number): string {
+  const clamped = Math.min(1, Math.max(0, t));
+  const r = Math.round(start[0] + (end[0] - start[0]) * clamped);
+  const g = Math.round(start[1] + (end[1] - start[1]) * clamped);
+  const b = Math.round(start[2] + (end[2] - start[2]) * clamped);
+  return `rgb(${r}, ${g}, ${b})`;
+}
+function downloadSensitivityCSV(result: SensitivityResult) {
+  const header = [
+    "Adoption \\\\ PearlShare",
+    ...result.pearlShareValues.map((v) => `${(v * 100).toFixed(1)}%`),
+  ];
+  const rows = result.rows.map((row) => {
+    const adoptionLabel = `${((row[0]?.adoption ?? 0) * 100).toFixed(1)}%`;
+    return [adoptionLabel, ...row.map((cell) => cell.value.toFixed(2))];
+  });
+
+  const csv = [header, ...rows].map((r) => r.join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "sensitivity_analysis.csv";
+  a.click();
+}
 
 // ── UI COMPONENTS ─────────────────────────────────────────────────────────────
 function Section({
@@ -687,6 +775,15 @@ export default function App() {
   const [activeTracks, setActiveTracks] = useState<Track[]>([...TRACKS]);
   const [tableOpen, setTableOpen] = useState(false);
   const [inputsPanelOpen, setInputsPanelOpen] = useState(true);
+  const [sensitivityConfig, setSensitivityConfig] = useState<SensitivityConfig>({
+    horizon: "TOTAL",
+    pearlShare: { min: 0.1, max: 0.4, step: 0.05 },
+    adoption: { min: 0.1, max: 0.6, step: 0.1 },
+    showHeatmap: true,
+  });
+  const [sensitivityResult, setSensitivityResult] = useState<SensitivityResult | null>(null);
+  const [sensitivityLoading, setSensitivityLoading] = useState(false);
+  const [sensitivityWarning, setSensitivityWarning] = useState<string | null>(null);
 
   const set = useCallback((path: string, val: any) => {
     setInp((prev) => {
@@ -714,6 +811,77 @@ export default function App() {
     setActiveTracks([...TRACKS]);
   };
 
+  const updateSensitivityRange = useCallback(
+    (key: "pearlShare" | "adoption", rangeKey: keyof SensitivityRange, value: number) => {
+      setSensitivityConfig((prev) => ({
+        ...prev,
+        [key]: {
+          ...prev[key],
+          [rangeKey]: Math.max(0, Math.min(1, value)),
+        },
+      }));
+    },
+    []
+  );
+
+  const runSensitivity = useCallback(() => {
+    const adoptionValues = generatePercentRange(
+      sensitivityConfig.adoption.min,
+      sensitivityConfig.adoption.max,
+      sensitivityConfig.adoption.step
+    );
+    const pearlShareValues = generatePercentRange(
+      sensitivityConfig.pearlShare.min,
+      sensitivityConfig.pearlShare.max,
+      sensitivityConfig.pearlShare.step
+    );
+
+    if (adoptionValues.length === 0 || pearlShareValues.length === 0) {
+      setSensitivityWarning("Please provide valid min/max/step ranges.");
+      setSensitivityResult(null);
+      return;
+    }
+
+    const totalCells = adoptionValues.length * pearlShareValues.length;
+    if (totalCells > 120) {
+      setSensitivityWarning(`Range too large (${totalCells} cells). Please keep it to 120 cells or fewer.`);
+      setSensitivityResult(null);
+      return;
+    }
+
+    setSensitivityWarning(null);
+    setSensitivityLoading(true);
+
+    setTimeout(() => {
+      const rows: GridCell[][] = adoptionValues.map((adoption) => {
+        return pearlShareValues.map((pearlShare) => {
+          const nextInput: Inputs = {
+            ...inp,
+            penetrationUniform: adoption,
+            penetrationByTrack: {
+              eCKM: adoption,
+              CKM: adoption,
+              MSK: adoption,
+              BH: adoption,
+            },
+            pearlShare,
+          };
+
+          const outputs = runModel(nextInput, activeTracks);
+          const value = computePearlRevenueForHorizon(outputs, sensitivityConfig.horizon);
+          return { adoption, pearlShare, value };
+        });
+      });
+
+      const allValues = rows.flat().map((cell) => cell.value);
+      const min = Math.min(...allValues);
+      const max = Math.max(...allValues);
+
+      setSensitivityResult({ adoptionValues, pearlShareValues, rows, min, max });
+      setSensitivityLoading(false);
+    }, 0);
+  }, [activeTracks, inp, sensitivityConfig]);
+
   const model = useMemo(() => runModel(inp, activeTracks), [inp, activeTracks]);
   const { kpi, adj, prop, eligByYear, newEligY2, newEligY3, months, trackRevByYear, kpiByYear } = model;
 
@@ -735,6 +903,20 @@ export default function App() {
       isTotal: true,
     },
   ];
+
+  const horizonLabel: Record<Horizon, string> = {
+    Y1: "Year 1",
+    Y2: "Year 2",
+    Y3: "Year 3",
+    TOTAL: "Total (Y1–Y3)",
+  };
+
+  const currentAdoption =
+    inp.penetrationMode === "uniform"
+      ? inp.penetrationUniform
+      : activeTracks.reduce((sum, track) => sum + inp.penetrationByTrack[track], 0) /
+        Math.max(activeTracks.length, 1);
+  const currentPearlShare = inp.pearlShare;
 
   return (
     <div className="flex flex-col lg:flex-row gap-4 p-4 bg-gray-100 min-h-screen text-sm text-gray-900">
@@ -1071,6 +1253,259 @@ export default function App() {
               </tbody>
             </table>
           </div>
+        </div>
+
+        {/* Sensitivity Analysis */}
+        <div className="bg-white rounded border border-gray-200 p-4 space-y-3">
+          <h3 className="font-semibold text-sm">Sensitivity Analysis</h3>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-gray-700 mb-1">Horizon</label>
+              <select
+                value={sensitivityConfig.horizon}
+                onChange={(e) =>
+                  setSensitivityConfig((prev) => ({ ...prev, horizon: e.target.value as Horizon }))
+                }
+                className="w-full border rounded px-2 py-1 text-sm"
+              >
+                <option value="Y1">Year 1</option>
+                <option value="Y2">Year 2</option>
+                <option value="Y3">Year 3</option>
+                <option value="TOTAL">Total (Y1–Y3)</option>
+              </select>
+            </div>
+            <div className="flex items-end">
+              <label className="flex items-center gap-2 text-xs text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={sensitivityConfig.showHeatmap}
+                  onChange={(e) =>
+                    setSensitivityConfig((prev) => ({ ...prev, showHeatmap: e.target.checked }))
+                  }
+                />
+                Show as heatmap shading
+              </label>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            <div className="border border-gray-200 rounded p-3">
+              <div className="text-xs font-medium mb-2">Pearl Share range (%)</div>
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block text-xs text-gray-700 mb-1">Min</label>
+                  <input
+                    type="number"
+                    className="w-full border rounded px-2 py-1 text-sm"
+                    value={(sensitivityConfig.pearlShare.min * 100).toFixed(1)}
+                    onChange={(e) =>
+                      updateSensitivityRange(
+                        "pearlShare",
+                        "min",
+                        (parseFloat(e.target.value) || 0) / 100
+                      )
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-700 mb-1">Max</label>
+                  <input
+                    type="number"
+                    className="w-full border rounded px-2 py-1 text-sm"
+                    value={(sensitivityConfig.pearlShare.max * 100).toFixed(1)}
+                    onChange={(e) =>
+                      updateSensitivityRange(
+                        "pearlShare",
+                        "max",
+                        (parseFloat(e.target.value) || 0) / 100
+                      )
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-700 mb-1">Step</label>
+                  <input
+                    type="number"
+                    className="w-full border rounded px-2 py-1 text-sm"
+                    value={(sensitivityConfig.pearlShare.step * 100).toFixed(1)}
+                    onChange={(e) =>
+                      updateSensitivityRange(
+                        "pearlShare",
+                        "step",
+                        (parseFloat(e.target.value) || 0) / 100
+                      )
+                    }
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="border border-gray-200 rounded p-3">
+              <div className="text-xs font-medium mb-2">Adoption range (%)</div>
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block text-xs text-gray-700 mb-1">Min</label>
+                  <input
+                    type="number"
+                    className="w-full border rounded px-2 py-1 text-sm"
+                    value={(sensitivityConfig.adoption.min * 100).toFixed(1)}
+                    onChange={(e) =>
+                      updateSensitivityRange(
+                        "adoption",
+                        "min",
+                        (parseFloat(e.target.value) || 0) / 100
+                      )
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-700 mb-1">Max</label>
+                  <input
+                    type="number"
+                    className="w-full border rounded px-2 py-1 text-sm"
+                    value={(sensitivityConfig.adoption.max * 100).toFixed(1)}
+                    onChange={(e) =>
+                      updateSensitivityRange(
+                        "adoption",
+                        "max",
+                        (parseFloat(e.target.value) || 0) / 100
+                      )
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-700 mb-1">Step</label>
+                  <input
+                    type="number"
+                    className="w-full border rounded px-2 py-1 text-sm"
+                    value={(sensitivityConfig.adoption.step * 100).toFixed(1)}
+                    onChange={(e) =>
+                      updateSensitivityRange(
+                        "adoption",
+                        "step",
+                        (parseFloat(e.target.value) || 0) / 100
+                      )
+                    }
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={runSensitivity}
+              className="text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
+              disabled={sensitivityLoading}
+            >
+              {sensitivityLoading ? "Running…" : "Run Sensitivity"}
+            </button>
+            <button
+              onClick={() => sensitivityResult && downloadSensitivityCSV(sensitivityResult)}
+              className="text-xs bg-gray-700 text-white px-3 py-1 rounded hover:bg-gray-800 disabled:opacity-50"
+              disabled={!sensitivityResult}
+            >
+              Download CSV
+            </button>
+            {sensitivityWarning && <span className="text-xs text-amber-700">⚠ {sensitivityWarning}</span>}
+          </div>
+
+          {sensitivityResult && (
+            <div className="space-y-2">
+              <div className="text-xs text-gray-700">
+                Horizon: <span className="font-medium">{horizonLabel[sensitivityConfig.horizon]}</span> • Min:{" "}
+                <span className="font-medium">{fmtCurrency(sensitivityResult.min)}</span> • Max:{" "}
+                <span className="font-medium">{fmtCurrency(sensitivityResult.max)}</span>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="text-xs w-full border border-gray-200">
+                  <thead>
+                    <tr className="bg-gray-50">
+                      <th className="text-left px-2 py-1 border-b border-r">Adoption \ Pearl Share</th>
+                      {sensitivityResult.pearlShareValues.map((ps) => {
+                        const colMatch = isSensitivityMatch(ps, currentPearlShare);
+                        const colShadow = colMatch ? "inset 2px 0 0 #222, inset -2px 0 0 #222, inset 0 2px 0 #222" : undefined;
+                        return (
+                          <th
+                            key={ps}
+                            className={`text-right px-2 py-1 border-b ${colMatch ? "font-bold" : ""}`}
+                            style={colShadow ? { boxShadow: colShadow } : undefined}
+                          >
+                            {(ps * 100).toFixed(1)}%
+                          </th>
+                        );
+                      })}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sensitivityResult.rows.map((row, rowIdx) => {
+                      const adoptionValue = sensitivityResult.adoptionValues[rowIdx];
+                      const rowMatch = isSensitivityMatch(adoptionValue, currentAdoption);
+
+                      return (
+                        <tr key={adoptionValue} className="border-t">
+                          <td
+                            className={`px-2 py-1 font-medium border-r ${rowMatch ? "font-bold" : ""}`}
+                            style={rowMatch ? { boxShadow: "inset 2px 0 0 #222, inset -2px 0 0 #222, inset 0 2px 0 #222, inset 0 -2px 0 #222" } : undefined}
+                          >
+                            {(adoptionValue * 100).toFixed(1)}%
+                          </td>
+                          {row.map((cell, colIdx) => {
+                            const span = sensitivityResult.max - sensitivityResult.min;
+                            const norm = span > 0 ? (cell.value - sensitivityResult.min) / span : 0;
+                            const bg = sensitivityConfig.showHeatmap
+                              ? interpolateColor([255, 255, 255], [132, 193, 165], norm)
+                              : "transparent";
+                            const colMatch = isSensitivityMatch(cell.pearlShare, currentPearlShare);
+                            const isLastRow = rowIdx === sensitivityResult.rows.length - 1;
+                            const isLastCol = colIdx === row.length - 1;
+
+                            const outlineSegments: string[] = [];
+                            if (rowMatch) {
+                              outlineSegments.push("inset 0 2px 0 #222", "inset 0 -2px 0 #222");
+                              if (isLastCol) outlineSegments.push("inset -2px 0 0 #222");
+                            }
+                            if (colMatch) {
+                              outlineSegments.push("inset 2px 0 0 #222", "inset -2px 0 0 #222");
+                              if (isLastRow) outlineSegments.push("inset 0 -2px 0 #222");
+                            }
+
+                            return (
+                              <td
+                                key={`${cell.adoption}-${cell.pearlShare}`}
+                                className="px-2 py-1 text-right tabular-nums text-gray-900"
+                                style={{
+                                  backgroundColor: bg,
+                                  boxShadow: outlineSegments.length > 0 ? outlineSegments.join(", ") : undefined,
+                                }}
+                                title={`Adoption ${(cell.adoption * 100).toFixed(1)}%, Pearl Share ${(cell.pearlShare * 100).toFixed(1)}%, Value ${fmtCurrency(cell.value)}`}
+                              >
+                                {fmtCurrency(cell.value)}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {sensitivityConfig.showHeatmap && (
+                <div className="flex items-center gap-2 text-xs text-gray-700">
+                  <span>Low</span>
+                  <div className="h-2 w-32 rounded" style={{ background: "linear-gradient(to right, rgb(255,255,255), rgb(132,193,165))" }} />
+                  <span>High</span>
+                </div>
+              )}
+
+              <p className="text-xs text-gray-700">
+                Values represent Pearl revenue share for selected horizon based on current model assumptions.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Monthly Data Table */}
