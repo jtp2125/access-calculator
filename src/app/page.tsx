@@ -145,6 +145,69 @@ type SensitivityResult = {
   max: number;
 };
 
+type ScenarioKey = "conservative" | "base" | "upside";
+
+const SCENARIO_PRESETS: Record<
+  ScenarioKey,
+  {
+    label: string;
+    blurb: string;
+    values: Pick<
+      Inputs,
+      "penetrationMode" | "penetrationUniform" | "rampPeriod" | "growthY2" | "growthY3" | "churnRate" | "oar" | "ssr" | "pearlShare"
+    >;
+  }
+> = {
+  conservative: {
+    label: "Conservative",
+    blurb:
+      "Conservative case: Assumes slower growth and slower adoption. The overall Pearl-eligible panel grows 20% in Year 2 and 20% in Year 3. Penetration is 15%, reached over an 18-month ramp, with 30% annual churn. Pearl captures 10% revenue share. Performance assumptions are cautious: OAR is 45% (eCKM/CKM) and 40% (MSK/BH), and SSR is 88% (eCKM/CKM/BH) and 86% (MSK).",
+    values: {
+      penetrationMode: "uniform",
+      penetrationUniform: 0.15,
+      rampPeriod: 18,
+      growthY2: 0.2,
+      growthY3: 0.2,
+      churnRate: 0.3,
+      oar: { eCKM: 0.45, CKM: 0.45, MSK: 0.4, BH: 0.4 },
+      ssr: { eCKM: 0.88, CKM: 0.88, MSK: 0.86, BH: 0.88 },
+      pearlShare: 0.1,
+    },
+  },
+  base: {
+    label: "Base",
+    blurb:
+      "Base case: Assumes steady growth and a reasonable adoption curve. The overall Pearl-eligible panel grows 40% in Year 2 and 40% in Year 3. Penetration is 25%, reached over a 12-month ramp, with 20% annual churn. Pearl captures 20% revenue share. Performance is in line with baseline expectations: OAR is 55% (eCKM/CKM) and 50% (MSK/BH), and SSR is 92% (eCKM/CKM/BH) and 90% (MSK).",
+    values: {
+      penetrationMode: "uniform",
+      penetrationUniform: 0.25,
+      rampPeriod: 12,
+      growthY2: 0.4,
+      growthY3: 0.4,
+      churnRate: 0.2,
+      oar: { eCKM: 0.55, CKM: 0.55, MSK: 0.5, BH: 0.5 },
+      ssr: { eCKM: 0.92, CKM: 0.92, MSK: 0.9, BH: 0.92 },
+      pearlShare: 0.2,
+    },
+  },
+  upside: {
+    label: "Upside",
+    blurb:
+      "Upside case: Assumes faster growth, faster adoption, stronger retention, and better performance. The overall Pearl-eligible panel grows 60% in Year 2 and 60% in Year 3. Penetration is 35%, reached over a 6-month ramp, with 10% annual churn. Pearl captures 30% revenue share. Performance is strong: OAR is 70% (eCKM/CKM) and 65% (MSK/BH), and SSR is 96% (eCKM/CKM/BH) and 95% (MSK).",
+    values: {
+      penetrationMode: "uniform",
+      penetrationUniform: 0.35,
+      rampPeriod: 6,
+      growthY2: 0.6,
+      growthY3: 0.6,
+      churnRate: 0.1,
+      oar: { eCKM: 0.7, CKM: 0.7, MSK: 0.65, BH: 0.65 },
+      ssr: { eCKM: 0.96, CKM: 0.96, MSK: 0.95, BH: 0.96 },
+      pearlShare: 0.3,
+    },
+  },
+};
+
 function runModel(inp: Inputs, activeTracks: Track[]) {
   const tracks: Track[] = activeTracks.length > 0 ? activeTracks : [...TRACKS];
 
@@ -774,6 +837,7 @@ function exportCSV(months: FullRow[], tracks: Track[]) {
 // ── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function App() {
   const [inp, setInp] = useState<Inputs>(DEFAULTS);
+  const [selectedScenario, setSelectedScenario] = useState<ScenarioKey>("base");
   const [activeTracks, setActiveTracks] = useState<Track[]>([...TRACKS]);
   const [tableOpen, setTableOpen] = useState(false);
   const [inputsPanelOpen, setInputsPanelOpen] = useState(false);
@@ -810,8 +874,24 @@ export default function App() {
 
   const resetAll = () => {
     setInp(JSON.parse(JSON.stringify(DEFAULTS)));
+    setSelectedScenario("base");
     setActiveTracks([...TRACKS]);
   };
+
+  const applyScenario = useCallback((scenario: ScenarioKey) => {
+    const preset = SCENARIO_PRESETS[scenario].values;
+    setSelectedScenario(scenario);
+    setInp((prev) => ({
+      ...prev,
+      ...preset,
+      penetrationByTrack: {
+        eCKM: preset.penetrationUniform,
+        CKM: preset.penetrationUniform,
+        MSK: preset.penetrationUniform,
+        BH: preset.penetrationUniform,
+      },
+    }));
+  }, []);
 
   const updateSensitivityRange = useCallback(
     (key: "pearlShare" | "adoption", rangeKey: keyof SensitivityRange, value: number) => {
@@ -941,6 +1021,25 @@ export default function App() {
               Hide inputs
             </button>
           </div>
+        </div>
+
+        <div className="mb-3 rounded-xl border border-indigo-200 bg-indigo-50/80 p-3 space-y-2">
+          <div className="text-xs font-semibold text-indigo-900">Scenario presets</div>
+          <div className="flex flex-wrap gap-2">
+            {(["conservative", "base", "upside"] as const).map((scenario) => (
+              <button
+                key={scenario}
+                onClick={() => applyScenario(scenario)}
+                className={`text-xs px-3 py-1 rounded border font-medium ${
+                  selectedScenario === scenario ? "text-white border-transparent" : "bg-white text-indigo-900 border-indigo-200"
+                }`}
+                style={selectedScenario === scenario ? { backgroundImage: "var(--pearl-gradient)" } : undefined}
+              >
+                {SCENARIO_PRESETS[scenario].label}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-indigo-900 leading-relaxed">{SCENARIO_PRESETS[selectedScenario].blurb}</p>
         </div>
 
         <Section title="Panel Size & Growth" onReset={() => resetSection("panel")}>
