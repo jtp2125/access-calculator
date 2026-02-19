@@ -587,10 +587,10 @@ function interpolateColor(start: [number, number, number], end: [number, number,
 function downloadSensitivityCSV(result: SensitivityResult) {
   const header = [
     "Adoption \\\\ PearlShare",
-    ...result.pearlShareValues.map((v) => `${(v * 100).toFixed(1)}%`),
+    ...result.pearlShareValues.map((v) => `${Math.round(v * 100)}%`),
   ];
   const rows = result.rows.map((row) => {
-    const adoptionLabel = `${((row[0]?.adoption ?? 0) * 100).toFixed(1)}%`;
+    const adoptionLabel = `${Math.round((row[0]?.adoption ?? 0) * 100)}%`;
     return [adoptionLabel, ...row.map((cell) => cell.value.toFixed(2))];
   });
 
@@ -646,8 +646,8 @@ function Row({
   tooltip?: string;
 }) {
   return (
-    <div className="flex items-start gap-2">
-      <div className="w-44 shrink-0 text-xs text-gray-800 pt-1">
+    <div className="flex flex-col sm:flex-row sm:items-start gap-2">
+      <div className="w-full sm:w-44 shrink-0 text-xs text-gray-800 pt-1">
         {label}
         {tooltip && (
           <span className="ml-1 text-gray-800 cursor-help" title={tooltip}>
@@ -694,7 +694,7 @@ function PctSlider({
   step?: number;
 }) {
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2 min-w-0">
       <input
         type="range"
         min={min}
@@ -702,17 +702,17 @@ function PctSlider({
         step={step}
         value={value}
         onChange={(e) => onChange(parseFloat(e.target.value))}
-        className="flex-1"
+        className="flex-1 min-w-0"
         style={{ accentColor: "#A855F7" }}
       />
       <input
         type="number"
-        value={(value * 100).toFixed(1)}
-        step={step * 100}
+        value={Math.round(value * 100)}
+        step={1}
         min={min * 100}
         max={max * 100}
         onChange={(e) => onChange((parseFloat(e.target.value) || 0) / 100)}
-        className="w-16 border rounded px-2 py-1 text-sm"
+        className="w-14 sm:w-16 border rounded px-2 py-1 text-sm"
       />
       <span className="text-xs text-gray-700">%</span>
     </div>
@@ -965,7 +965,7 @@ export default function App() {
   }, [activeTracks, inp, sensitivityConfig]);
 
   const model = useMemo(() => runModel(inp, activeTracks), [inp, activeTracks]);
-  const { kpi, adj, prop, eligByYear, newEligY2, newEligY3, months, trackRevByYear, kpiByYear } = model;
+  const { kpi, adj, prop, months, trackRevByYear, kpiByYear } = model;
 
   const chartData = [
     { year: "Year 1", ...Object.fromEntries(activeTracks.map((t) => [t, trackRevByYear[t]?.Y1 ?? 0])) },
@@ -1040,11 +1040,21 @@ export default function App() {
 
         <Section title="Panel Size & Growth" onReset={() => resetSection("panel")}>
           <Row label="Total Panel Size">
-            <NumInput value={inp.totalPanel} onChange={(v) => set("totalPanel", v)} min={1} />
+            <input
+              type="number"
+              value={inp.totalPanel}
+              disabled
+              className="w-full border rounded px-2 py-1 text-sm bg-gray-100 text-gray-600 cursor-not-allowed"
+            />
           </Row>
           {TRACKS.map((t) => (
             <Row key={t} label={`${t} Eligible`}>
-              <NumInput value={inp.eligible[t]} onChange={(v) => set(`eligible.${t}`, v)} min={0} />
+              <input
+                type="number"
+                value={inp.eligible[t]}
+                disabled
+                className="w-full border rounded px-2 py-1 text-sm bg-gray-100 text-gray-600 cursor-not-allowed"
+              />
             </Row>
           ))}
           <div className="text-xs text-gray-700 bg-gray-50 rounded p-2 space-y-0.5">
@@ -1060,14 +1070,6 @@ export default function App() {
           <Row label="Y3 Growth Rate">
             <PctSlider value={inp.growthY3} onChange={(v) => set("growthY3", v)} min={0} max={1} step={0.01} />
           </Row>
-          <div className="text-xs text-gray-700 bg-gray-50 rounded p-2 space-y-0.5">
-            <div className="font-medium">New eligible patients:</div>
-            {TRACKS.map((t) => (
-              <div key={t}>
-                {t}: Y2 +{fmtInt(newEligY2[t])} / Y3 +{fmtInt(newEligY3[t])}
-              </div>
-            ))}
-          </div>
         </Section>
 
         <Section title="Enrollment & Penetration" onReset={() => resetSection("enrollment")}>
@@ -1128,7 +1130,7 @@ export default function App() {
                 step={1}
                 value={inp.rampPeriod}
                 onChange={(e) => set("rampPeriod", parseInt(e.target.value))}
-                className="flex-1"
+                className="flex-1 min-w-0"
                 style={{ accentColor: "#A855F7" }}
               />
               <span className="text-sm font-medium w-10">{inp.rampPeriod} mo</span>
@@ -1155,25 +1157,13 @@ export default function App() {
               ))}
             </div>
           </Row>
-
-          <div className="text-xs text-gray-700 bg-gray-50 rounded p-2 space-y-0.5">
-            <div className="font-medium">Peak enrolled (Cohort 1):</div>
-            {TRACKS.map((t) => {
-              const pen = inp.penetrationMode === "uniform" ? inp.penetrationUniform : inp.penetrationByTrack[t];
-              return (
-                <div key={t}>
-                  {t}: {fmtInt(eligByYear.Y1[t] * pen * (inp.controlGroupByYear.Y1 ? 0.9 : 1.0))}
-                </div>
-              );
-            })}
-          </div>
         </Section>
 
         <Section title="Patient Flow & Retention" onReset={() => resetSection("flow")}>
           <Row label="Annual Churn Rate">
             <PctSlider value={inp.churnRate} onChange={(v) => set("churnRate", v)} min={0} max={0.5} step={0.005} />
           </Row>
-          <div className="text-xs text-gray-800 -mt-1 ml-44">Monthly: {fmtPct(inp.churnRate / 12)}</div>
+          <div className="text-xs text-gray-800 -mt-1 ml-0 sm:ml-44">Monthly: {fmtPct(inp.churnRate / 12)}</div>
           <Row label="Multi-Track Overlap" tooltip="Placeholder — pending data science team data">
             <PctSlider value={inp.overlapRate} onChange={(v) => set("overlapRate", v)} min={0} max={0.4} step={0.005} />
           </Row>
@@ -1211,7 +1201,7 @@ export default function App() {
           <Row label="OAT (M19–36)" tooltip="Months 1–18 fixed at 50% per CMS rules">
             <PctSlider value={inp.oatM19to36} onChange={(v) => set("oatM19to36", v)} min={0.6} max={0.65} step={0.005} />
           </Row>
-          <div className="text-xs text-gray-800 -mt-1 ml-44">M1–18 OAT: 50% (fixed by CMS)</div>
+          <div className="text-xs text-gray-800 -mt-1 ml-0 sm:ml-44">M1–18 OAT: 50% (fixed by CMS)</div>
           <div className="text-xs font-semibold text-gray-800 mb-1 mt-2">Substitute Spend Rate (SSR)</div>
           {TRACKS.map((t) => (
             <Row key={t} label={`${t} SSR`}>
@@ -1394,7 +1384,8 @@ export default function App() {
                   <input
                     type="number"
                     className="w-full border rounded px-2 py-1 text-sm"
-                    value={(sensitivityConfig.pearlShare.min * 100).toFixed(1)}
+                    step={1}
+                    value={Math.round(sensitivityConfig.pearlShare.min * 100)}
                     onChange={(e) =>
                       updateSensitivityRange(
                         "pearlShare",
@@ -1409,7 +1400,8 @@ export default function App() {
                   <input
                     type="number"
                     className="w-full border rounded px-2 py-1 text-sm"
-                    value={(sensitivityConfig.pearlShare.max * 100).toFixed(1)}
+                    step={1}
+                    value={Math.round(sensitivityConfig.pearlShare.max * 100)}
                     onChange={(e) =>
                       updateSensitivityRange(
                         "pearlShare",
@@ -1424,7 +1416,8 @@ export default function App() {
                   <input
                     type="number"
                     className="w-full border rounded px-2 py-1 text-sm"
-                    value={(sensitivityConfig.pearlShare.step * 100).toFixed(1)}
+                    step={1}
+                    value={Math.round(sensitivityConfig.pearlShare.step * 100)}
                     onChange={(e) =>
                       updateSensitivityRange(
                         "pearlShare",
@@ -1445,7 +1438,8 @@ export default function App() {
                   <input
                     type="number"
                     className="w-full border rounded px-2 py-1 text-sm"
-                    value={(sensitivityConfig.adoption.min * 100).toFixed(1)}
+                    step={1}
+                    value={Math.round(sensitivityConfig.adoption.min * 100)}
                     onChange={(e) =>
                       updateSensitivityRange(
                         "adoption",
@@ -1460,7 +1454,8 @@ export default function App() {
                   <input
                     type="number"
                     className="w-full border rounded px-2 py-1 text-sm"
-                    value={(sensitivityConfig.adoption.max * 100).toFixed(1)}
+                    step={1}
+                    value={Math.round(sensitivityConfig.adoption.max * 100)}
                     onChange={(e) =>
                       updateSensitivityRange(
                         "adoption",
@@ -1475,7 +1470,8 @@ export default function App() {
                   <input
                     type="number"
                     className="w-full border rounded px-2 py-1 text-sm"
-                    value={(sensitivityConfig.adoption.step * 100).toFixed(1)}
+                    step={1}
+                    value={Math.round(sensitivityConfig.adoption.step * 100)}
                     onChange={(e) =>
                       updateSensitivityRange(
                         "adoption",
@@ -1531,7 +1527,7 @@ export default function App() {
                             className={`text-right px-2 py-1 border-b ${colMatch ? "font-bold" : ""}`}
                             style={colShadow ? { boxShadow: colShadow } : undefined}
                           >
-                            {(ps * 100).toFixed(1)}%
+                            {Math.round(ps * 100)}%
                           </th>
                         );
                       })}
@@ -1548,7 +1544,7 @@ export default function App() {
                             className={`px-2 py-1 font-medium border-r ${rowMatch ? "font-bold" : ""}`}
                             style={rowMatch ? { boxShadow: "inset 2px 0 0 #222, inset -2px 0 0 #222, inset 0 2px 0 #222, inset 0 -2px 0 #222" } : undefined}
                           >
-                            {(adoptionValue * 100).toFixed(1)}%
+                            {Math.round(adoptionValue * 100)}%
                           </td>
                           {row.map((cell, colIdx) => {
                             const span = sensitivityResult.max - sensitivityResult.min;
@@ -1578,7 +1574,7 @@ export default function App() {
                                   backgroundColor: bg,
                                   boxShadow: outlineSegments.length > 0 ? outlineSegments.join(", ") : undefined,
                                 }}
-                                title={`Adoption ${(cell.adoption * 100).toFixed(1)}%, Pearl Share ${(cell.pearlShare * 100).toFixed(1)}%, Value ${fmtCurrency(cell.value)}`}
+                                title={`Adoption ${Math.round(cell.adoption * 100)}%, Pearl Share ${Math.round(cell.pearlShare * 100)}%, Value ${fmtCurrency(cell.value)}`}
                               >
                                 {fmtCurrency(cell.value)}
                               </td>
