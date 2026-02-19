@@ -147,10 +147,10 @@ function runModel(inp: Inputs, activeTracks: Track[]) {
   });
 
   // Step 2: build sub-cohorts
-  const cohortDefs: Array<{ mc: 1 | 2 | 3; start: number; eligYear: "Y1" | "Y2" | "Y3" }> = [
-    { mc: 1, start: 1, eligYear: "Y1" },
-    { mc: 2, start: 13, eligYear: "Y2" },
-    { mc: 3, start: 25, eligYear: "Y3" },
+  const cohortDefs: Array<{ mc: 1 | 2 | 3; start: number; targetBase: Record<Track, number> }> = [
+    { mc: 1, start: 1, targetBase: eligByYear.Y1 },
+    { mc: 2, start: 13, targetBase: newEligY2 },
+    { mc: 3, start: 25, targetBase: newEligY3 },
   ];
 
   const subCohorts: SubCohort[] = [];
@@ -160,7 +160,7 @@ function runModel(inp: Inputs, activeTracks: Track[]) {
 
     tracks.forEach((t) => {
       const pen = inp.penetrationMode === "uniform" ? inp.penetrationUniform : inp.penetrationByTrack[t];
-      const target = eligByYear[cd.eligYear][t] * pen * ctrlAdj;
+      const target = cd.targetBase[t] * pen * ctrlAdj;
 
       for (let m = cd.start; m <= rampEnd; m++) {
         const inc = target / inp.rampPeriod;
