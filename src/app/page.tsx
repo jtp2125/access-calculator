@@ -509,6 +509,18 @@ function generatePercentRange(min: number, max: number, step: number): number[] 
   return values;
 }
 
+
+function isSensitivityMatch(a: number, b: number, tolerance = 0.0005): boolean {
+  return Math.abs(a - b) <= tolerance;
+}
+
+function interpolateColor(start: [number, number, number], end: [number, number, number], t: number): string {
+  const clamped = Math.min(1, Math.max(0, t));
+  const r = Math.round(start[0] + (end[0] - start[0]) * clamped);
+  const g = Math.round(start[1] + (end[1] - start[1]) * clamped);
+  const b = Math.round(start[2] + (end[2] - start[2]) * clamped);
+  return `rgb(${r}, ${g}, ${b})`;
+}
 function downloadSensitivityCSV(result: SensitivityResult) {
   const header = [
     "Adoption \\\\ PearlShare",
@@ -898,6 +910,13 @@ export default function App() {
     Y3: "Year 3",
     TOTAL: "Total (Y1–Y3)",
   };
+
+  const currentAdoption =
+    inp.penetrationMode === "uniform"
+      ? inp.penetrationUniform
+      : activeTracks.reduce((sum, track) => sum + inp.penetrationByTrack[track], 0) /
+        Math.max(activeTracks.length, 1);
+  const currentPearlShare = inp.pearlShare;
 
   return (
     <div className="flex flex-col lg:flex-row gap-4 p-4 bg-gray-100 min-h-screen text-sm text-gray-900">
@@ -1405,36 +1424,64 @@ export default function App() {
                   <thead>
                     <tr className="bg-gray-50">
                       <th className="text-left px-2 py-1 border-b border-r">Adoption \ Pearl Share</th>
-                      {sensitivityResult.pearlShareValues.map((ps) => (
-                        <th key={ps} className="text-right px-2 py-1 border-b">
-                          {(ps * 100).toFixed(1)}%
-                        </th>
-                      ))}
+                      {sensitivityResult.pearlShareValues.map((ps) => {
+                        const colMatch = isSensitivityMatch(ps, currentPearlShare);
+                        return (
+                          <th
+                            key={ps}
+                            className={`text-right px-2 py-1 border-b ${colMatch ? "font-bold" : ""}`}
+                            style={colMatch ? { boxShadow: "inset 0 0 0 2px #222" } : undefined}
+                          >
+                            {(ps * 100).toFixed(1)}%
+                          </th>
+                        );
+                      })}
                     </tr>
                   </thead>
                   <tbody>
-                    {sensitivityResult.rows.map((row, rowIdx) => (
-                      <tr key={sensitivityResult.adoptionValues[rowIdx]} className="border-t">
-                        <td className="px-2 py-1 font-medium border-r">{(sensitivityResult.adoptionValues[rowIdx] * 100).toFixed(1)}%</td>
-                        {row.map((cell) => {
-                          const span = sensitivityResult.max - sensitivityResult.min;
-                          const norm = span > 0 ? (cell.value - sensitivityResult.min) / span : 0;
-                          const alpha = sensitivityConfig.showHeatmap ? 0.06 + norm * 0.34 : 0;
-                          const textClass = sensitivityConfig.showHeatmap && norm > 0.65 ? "text-white" : "text-gray-900";
+                    {sensitivityResult.rows.map((row, rowIdx) => {
+                      const adoptionValue = sensitivityResult.adoptionValues[rowIdx];
+                      const rowMatch = isSensitivityMatch(adoptionValue, currentAdoption);
 
-                          return (
-                            <td
-                              key={`${cell.adoption}-${cell.pearlShare}`}
-                              className={`px-2 py-1 text-right tabular-nums ${textClass}`}
-                              style={{ backgroundColor: `rgba(17, 24, 39, ${alpha})` }}
-                              title={`Adoption ${(cell.adoption * 100).toFixed(1)}%, Pearl Share ${(cell.pearlShare * 100).toFixed(1)}%, Value ${fmtCurrency(cell.value)}`}
-                            >
-                              {fmtCurrency(cell.value)}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
+                      return (
+                        <tr key={adoptionValue} className="border-t">
+                          <td
+                            className={`px-2 py-1 font-medium border-r ${rowMatch ? "font-bold" : ""}`}
+                            style={rowMatch ? { boxShadow: "inset 0 0 0 2px #222" } : undefined}
+                          >
+                            {(adoptionValue * 100).toFixed(1)}%
+                          </td>
+                          {row.map((cell) => {
+                            const span = sensitivityResult.max - sensitivityResult.min;
+                            const norm = span > 0 ? (cell.value - sensitivityResult.min) / span : 0;
+                            const bg = sensitivityConfig.showHeatmap
+                              ? interpolateColor([255, 255, 255], [46, 107, 79], norm)
+                              : "transparent";
+                            const textClass = sensitivityConfig.showHeatmap && norm > 0.72 ? "text-white" : "text-gray-900";
+                            const colMatch = isSensitivityMatch(cell.pearlShare, currentPearlShare);
+                            const intersectMatch = rowMatch && colMatch;
+
+                            return (
+                              <td
+                                key={`${cell.adoption}-${cell.pearlShare}`}
+                                className={`px-2 py-1 text-right tabular-nums ${textClass}`}
+                                style={{
+                                  backgroundColor: bg,
+                                  boxShadow: intersectMatch
+                                    ? "inset 0 0 0 3px #111"
+                                    : rowMatch || colMatch
+                                      ? "inset 0 0 0 2px #222"
+                                      : undefined,
+                                }}
+                                title={`Adoption ${(cell.adoption * 100).toFixed(1)}%, Pearl Share ${(cell.pearlShare * 100).toFixed(1)}%, Value ${fmtCurrency(cell.value)}`}
+                              >
+                                {fmtCurrency(cell.value)}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -1442,7 +1489,7 @@ export default function App() {
               {sensitivityConfig.showHeatmap && (
                 <div className="flex items-center gap-2 text-xs text-gray-700">
                   <span>Low</span>
-                  <div className="h-2 w-32 rounded" style={{ background: "linear-gradient(to right, rgba(17,24,39,0.06), rgba(17,24,39,0.4))" }} />
+                  <div className="h-2 w-32 rounded" style={{ background: "linear-gradient(to right, rgb(255,255,255), rgb(46,107,79))" }} />
                   <span>High</span>
                 </div>
               )}
