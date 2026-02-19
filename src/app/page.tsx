@@ -23,9 +23,9 @@ const TRACKS = ["eCKM", "CKM", "MSK", "BH"] as const;
 type Track = (typeof TRACKS)[number];
 
 const TRACK_COLORS: Record<Track, string> = {
-  eCKM: "#3b82f6",
-  CKM: "#8b5cf6",
-  MSK: "#22c55e",
+  eCKM: "#4F46E5",
+  CKM: "#9333EA",
+  MSK: "#10B981",
   BH: "#f97316",
 };
 
@@ -550,12 +550,12 @@ function Section({
   children: React.ReactNode;
   onReset: () => void;
 }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   return (
-    <div className="border border-gray-200 rounded mb-3">
-      <div className="flex items-center bg-gray-50 px-3 py-2">
+    <div className="rounded-xl mb-3 bg-white/70 backdrop-blur-xl border border-white/40 shadow-[0_10px_35px_rgba(79,70,229,0.14)]">
+      <div className="flex items-center px-3 py-2 border-l-[3px] border-indigo-600">
         <button
-          className="flex-1 text-left font-semibold text-sm flex items-center gap-1"
+          className="flex-1 text-left font-bold text-black text-sm flex items-center gap-1"
           onClick={() => setOpen((o) => !o)}
         >
           <span>{open ? "▲" : "▼"}</span>
@@ -774,7 +774,7 @@ export default function App() {
   const [inp, setInp] = useState<Inputs>(DEFAULTS);
   const [activeTracks, setActiveTracks] = useState<Track[]>([...TRACKS]);
   const [tableOpen, setTableOpen] = useState(false);
-  const [inputsPanelOpen, setInputsPanelOpen] = useState(true);
+  const [inputsPanelOpen, setInputsPanelOpen] = useState(false);
   const [sensitivityConfig, setSensitivityConfig] = useState<SensitivityConfig>({
     horizon: "TOTAL",
     pearlShare: { min: 0.1, max: 0.4, step: 0.05 },
@@ -919,10 +919,10 @@ export default function App() {
   const currentPearlShare = inp.pearlShare;
 
   return (
-    <div className="flex flex-col lg:flex-row gap-4 p-4 bg-gray-100 min-h-screen text-sm text-gray-900">
+    <div className="flex flex-col lg:flex-row gap-4 p-4 min-h-screen text-sm text-gray-900">
       {/* ── INPUT PANEL ── */}
       {inputsPanelOpen && (
-      <div className="w-full lg:w-[30rem] xl:w-[34rem] shrink-0 overflow-y-auto">
+      <div className="w-full lg:w-[30rem] xl:w-[34rem] shrink-0 overflow-y-auto rounded-xl border border-white/40 bg-white/70 backdrop-blur-xl shadow-[0_16px_44px_rgba(79,70,229,0.16)] p-3">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-base font-bold text-blue-800">ACCESS Calculator — Inputs</h2>
           <div className="flex items-center gap-2">
@@ -1122,12 +1122,13 @@ export default function App() {
       )}
 
       {/* ── OUTPUT PANEL ── */}
-      <div className="flex-1 overflow-y-auto space-y-4 min-w-0">
+      <div className="flex-1 overflow-y-auto space-y-4 min-w-0 rounded-xl border border-white/40 bg-white/70 backdrop-blur-xl shadow-[0_16px_44px_rgba(79,70,229,0.16)] p-3">
         {!inputsPanelOpen && (
           <div className="flex justify-start">
             <button
               onClick={() => setInputsPanelOpen(true)}
-              className="text-xs bg-blue-600 text-white hover:bg-blue-700 border border-blue-700 rounded px-3 py-1 font-medium"
+              className="text-xs text-white rounded-xl px-3 py-1 font-medium hover:opacity-90"
+              style={{ backgroundImage: "var(--pearl-gradient)" }}
             >
               Show inputs
             </button>
@@ -1135,28 +1136,28 @@ export default function App() {
         )}
         <div className="flex items-center justify-between flex-wrap gap-2">
           <h2 className="text-base font-bold text-blue-800">Outputs</h2>
-          <div className="bg-white rounded border border-gray-200 px-3 py-2">
+          <div className="bg-white/70 backdrop-blur-xl rounded-xl border border-white/40 px-3 py-2 shadow-[0_10px_30px_rgba(79,70,229,0.12)]">
             <TrackFilter activeTracks={activeTracks} onChange={setActiveTracks} />
           </div>
         </div>
 
         {activeTracks.length < TRACKS.length && (
-          <div className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded px-3 py-1.5">
+          <div className="text-xs text-blue-700 bg-blue-50/80 border border-blue-200/60 rounded-xl px-3 py-1.5">
             Showing {activeTracks.join(", ")} only — all figures scoped to selected tracks.
           </div>
         )}
 
         {/* KPI Summary Table */}
-        <div className="bg-white rounded border border-gray-200 p-4">
+        <div className="bg-white/70 backdrop-blur-xl rounded-xl border border-white/40 p-4 shadow-[0_10px_30px_rgba(79,70,229,0.12)]">
           <h3 className="font-semibold text-sm mb-3">Summary Metrics by Year</h3>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm border-t-4" style={{ borderImage: "var(--pearl-gradient) 1" }}>
               <thead>
                 <tr className="text-xs text-gray-700 border-b border-gray-200">
                   <th className="text-left py-2 pr-4 font-medium w-28"></th>
                   <th className="text-right py-2 px-3 font-medium">Gross OAP Rev</th>
                   <th className="text-right py-2 px-3 font-medium">Net OAP Rev</th>
-                  <th className="text-right py-2 px-3 font-medium text-blue-700">Pearl Net Rev</th>
+                  <th className="text-right py-2 px-3 font-medium text-transparent bg-clip-text" style={{ backgroundImage: "var(--pearl-gradient)" }}>Pearl Net Rev</th>
                   <th className="text-right py-2 px-3 font-medium">Peak Enrolled</th>
                   <th className="text-right py-2 px-3 font-medium">Blended Adj.</th>
                 </tr>
@@ -1172,7 +1173,12 @@ export default function App() {
                     <td className={`py-2 pr-4 text-sm ${row.isTotal ? "text-blue-800" : "text-gray-800"}`}>{row.label}</td>
                     <td className="py-2 px-3 text-right tabular-nums">{fmt$(row.gross)}</td>
                     <td className="py-2 px-3 text-right tabular-nums">{fmt$(row.net)}</td>
-                    <td className={`py-2 px-3 text-right tabular-nums font-semibold ${row.isTotal ? "text-blue-700 text-base" : "text-blue-600"}`}>
+                    <td
+                      className={`py-2 px-3 text-right tabular-nums font-black text-xl ${
+                        row.isTotal ? "text-transparent bg-clip-text" : "text-indigo-600"
+                      }`}
+                      style={row.isTotal ? { backgroundImage: "var(--pearl-gradient)" } : undefined}
+                    >
                       {fmt$(row.pearl)}
                     </td>
                     <td className="py-2 px-3 text-right tabular-nums">{fmtInt(row.peakEnrolled)}</td>
@@ -1185,7 +1191,7 @@ export default function App() {
         </div>
 
         {/* Stacked Bar Chart */}
-        <div className="bg-white rounded border border-gray-200 p-4">
+        <div className="bg-white/70 backdrop-blur-xl rounded-xl border border-white/40 p-4 shadow-[0_10px_30px_rgba(79,70,229,0.12)]">
           <h3 className="font-semibold text-sm mb-1">Pearl Net Revenue by Track & Year</h3>
           <p className="text-xs text-gray-800 mb-3">Each segment shows a track's contribution to Pearl's net revenue per year</p>
           <ResponsiveContainer width="100%" height={260}>
@@ -1200,7 +1206,7 @@ export default function App() {
                   dataKey={t}
                   stackId="a"
                   fill={TRACK_COLORS[t]}
-                  radius={t === activeTracks[activeTracks.length - 1] ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                  radius={[8, 8, 0, 0]}
                 />
               ))}
             </BarChart>
@@ -1208,7 +1214,7 @@ export default function App() {
         </div>
 
         {/* Adjustment Transparency Table */}
-        <div className="bg-white rounded border border-gray-200 p-3">
+        <div className="bg-white/70 backdrop-blur-xl rounded-xl border border-white/40 p-3 shadow-[0_10px_30px_rgba(79,70,229,0.12)]">
           <h3 className="font-semibold text-sm mb-2">Performance Adjustment Transparency</h3>
           <div className="overflow-x-auto">
             <table className="text-xs w-full">
@@ -1256,7 +1262,7 @@ export default function App() {
         </div>
 
         {/* Sensitivity Analysis */}
-        <div className="bg-white rounded border border-gray-200 p-4 space-y-3">
+        <div className="bg-white/70 backdrop-blur-xl rounded-xl border border-white/40 p-4 space-y-3 shadow-[0_10px_30px_rgba(79,70,229,0.12)]">
           <h3 className="font-semibold text-sm">Sensitivity Analysis</h3>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
@@ -1396,7 +1402,8 @@ export default function App() {
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={runSensitivity}
-              className="text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
+              className="text-xs text-white px-3 py-1 rounded-xl hover:opacity-90"
+              style={{ backgroundImage: "var(--pearl-gradient)" }}
               disabled={sensitivityLoading}
             >
               {sensitivityLoading ? "Running…" : "Run Sensitivity"}
@@ -1509,14 +1516,15 @@ export default function App() {
         </div>
 
         {/* Monthly Data Table */}
-        <div className="bg-white rounded border border-gray-200 p-3">
+        <div className="bg-white/70 backdrop-blur-xl rounded-xl border border-white/40 p-3 shadow-[0_10px_30px_rgba(79,70,229,0.12)]">
           <div className="flex justify-between items-center mb-2">
             <button className="font-semibold text-sm flex items-center gap-1" onClick={() => setTableOpen((o) => !o)}>
               Month-by-Month Data {tableOpen ? "▲" : "▼"}
             </button>
             <button
               onClick={() => exportCSV(months, activeTracks)}
-              className="text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
+              className="text-xs text-white px-3 py-1 rounded-xl hover:opacity-90"
+              style={{ backgroundImage: "var(--pearl-gradient)" }}
             >
               Export CSV
             </button>
