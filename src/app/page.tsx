@@ -105,6 +105,14 @@ type FullRow = MonthlyRow & {
   pearlRev: number;
   blendAdj: number;
   pearlCumul: number;
+  newlyEnrolledTotal: number;
+  churnedTotal: number;
+  netChange: number;
+  initialPeriodEnrolled: number;
+  followOnEnrolled: number;
+  c1NewlyEnrolled: number;
+  c2NewlyEnrolled: number;
+  c3NewlyEnrolled: number;
 };
 
 function runModel(inp: Inputs, activeTracks: Track[]) {
@@ -165,6 +173,16 @@ function runModel(inp: Inputs, activeTracks: Track[]) {
   const monthlyChurn = inp.churnRate / 12;
   const rateMultiplier = inp.costSharingWaived ? 1.0 : 1.25;
   const rawMonths: MonthlyRow[] = [];
+  const monthlyNewEnrollments: Record<number, { total: number; byCohort: Record<1 | 2 | 3, number> }> = {};
+
+  for (let T = 1; T <= 36; T++) {
+    monthlyNewEnrollments[T] = { total: 0, byCohort: { 1: 0, 2: 0, 3: 0 } };
+  }
+
+  subCohorts.forEach((sc) => {
+    monthlyNewEnrollments[sc.enrollM].total += sc.inc;
+    monthlyNewEnrollments[sc.enrollM].byCohort[sc.mc] += sc.inc;
+  });
 
   for (let T = 1; T <= 36; T++) {
     const byTrack: MonthlyRow["byTrack"] = {
@@ -282,6 +300,7 @@ function runModel(inp: Inputs, activeTracks: Track[]) {
   const withheldAccum: Record<Track, number> = { eCKM: 0, CKM: 0, MSK: 0, BH: 0 };
 
   let pearlCumul = 0;
+  let previousTotalEnrolled = 0;
   const full: FullRow[] = rawMonths.map((m) => {
     const isRecon = (RECON_MONTHS as readonly number[]).includes(m.T);
     const oatPeriod: "early" | "late" = m.T <= 18 ? "early" : "late";
@@ -318,7 +337,35 @@ function runModel(inp: Inputs, activeTracks: Track[]) {
     const pearlRev = netRev * inp.pearlShare;
     pearlCumul += pearlRev;
 
-    return { ...m, isRecon, netPaid, release, netRev, pearlRev, blendAdj, pearlCumul };
+    const newlyEnrolledTotal = monthlyNewEnrollments[m.T].total;
+    const netChange = m.totalEnrolled - previousTotalEnrolled;
+    const churnedTotal = previousTotalEnrolled + newlyEnrolledTotal - m.totalEnrolled;
+    const initialPeriodEnrolled = tracks.reduce((s, t) => s + m.byTrack[t].initial, 0);
+    const followOnEnrolled = tracks.reduce((s, t) => s + m.byTrack[t].followOn, 0);
+    const c1NewlyEnrolled = monthlyNewEnrollments[m.T].byCohort[1];
+    const c2NewlyEnrolled = monthlyNewEnrollments[m.T].byCohort[2];
+    const c3NewlyEnrolled = monthlyNewEnrollments[m.T].byCohort[3];
+
+    previousTotalEnrolled = m.totalEnrolled;
+
+    return {
+      ...m,
+      isRecon,
+      netPaid,
+      release,
+      netRev,
+      pearlRev,
+      blendAdj,
+      pearlCumul,
+      newlyEnrolledTotal,
+      churnedTotal,
+      netChange,
+      initialPeriodEnrolled,
+      followOnEnrolled,
+      c1NewlyEnrolled,
+      c2NewlyEnrolled,
+      c3NewlyEnrolled,
+    };
   });
 
   // Step 8: summaries
@@ -576,6 +623,14 @@ function exportCSV(months: FullRow[], tracks: Track[]) {
     "Year",
     "Recon",
     "Total Enrolled",
+    "Newly Enrolled (total)",
+    "Churned (total)",
+    "Net Change",
+    "Initial Period Enrolled",
+    "Follow-On Enrolled",
+    "C1 Newly Enrolled",
+    "C2 Newly Enrolled",
+    "C3 Newly Enrolled",
     ...tracks,
     "C1",
     "C2",
@@ -595,6 +650,14 @@ function exportCSV(months: FullRow[], tracks: Track[]) {
     Math.ceil(r.T / 12),
     r.isRecon ? "Y" : "",
     Math.round(r.totalEnrolled),
+    Math.round(r.newlyEnrolledTotal),
+    Math.round(r.churnedTotal),
+    Math.round(r.netChange),
+    Math.round(r.initialPeriodEnrolled),
+    Math.round(r.followOnEnrolled),
+    Math.round(r.c1NewlyEnrolled),
+    Math.round(r.c2NewlyEnrolled),
+    Math.round(r.c3NewlyEnrolled),
     ...tracks.map((t) => Math.round(r.byTrack[t].initial + r.byTrack[t].followOn)),
     Math.round(r.byCohort[1]),
     Math.round(r.byCohort[2]),
@@ -1033,6 +1096,14 @@ export default function App() {
                     <th className="px-1 py-1">Yr</th>
                     <th className="px-1 py-1">Rec</th>
                     <th className="px-1 py-1">Enrolled</th>
+                    <th className="px-1 py-1">Newly Enrolled (Total)</th>
+                    <th className="px-1 py-1">Churned (Total)</th>
+                    <th className="px-1 py-1">Net Change</th>
+                    <th className="px-1 py-1">Initial Period Enrolled</th>
+                    <th className="px-1 py-1">Follow-On Enrolled</th>
+                    <th className="px-1 py-1">C1 Newly Enrolled</th>
+                    <th className="px-1 py-1">C2 Newly Enrolled</th>
+                    <th className="px-1 py-1">C3 Newly Enrolled</th>
                     {activeTracks.map((t) => (
                       <th key={t} className="px-1 py-1">
                         {t}
@@ -1058,6 +1129,14 @@ export default function App() {
                       <td className="px-1 py-0.5 text-center">{Math.ceil(r.T / 12)}</td>
                       <td className="px-1 py-0.5 text-center">{r.isRecon ? "✓" : ""}</td>
                       <td className="px-1 py-0.5 text-right">{fmtInt(r.totalEnrolled)}</td>
+                      <td className="px-1 py-0.5 text-right">{fmtInt(r.newlyEnrolledTotal)}</td>
+                      <td className="px-1 py-0.5 text-right">{fmtInt(r.churnedTotal)}</td>
+                      <td className="px-1 py-0.5 text-right">{fmtInt(r.netChange)}</td>
+                      <td className="px-1 py-0.5 text-right">{fmtInt(r.initialPeriodEnrolled)}</td>
+                      <td className="px-1 py-0.5 text-right">{fmtInt(r.followOnEnrolled)}</td>
+                      <td className="px-1 py-0.5 text-right">{fmtInt(r.c1NewlyEnrolled)}</td>
+                      <td className="px-1 py-0.5 text-right">{fmtInt(r.c2NewlyEnrolled)}</td>
+                      <td className="px-1 py-0.5 text-right">{fmtInt(r.c3NewlyEnrolled)}</td>
                       {activeTracks.map((t) => (
                         <td key={t} className="px-1 py-0.5 text-right">
                           {fmtInt(r.byTrack[t].initial + r.byTrack[t].followOn)}
