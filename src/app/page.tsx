@@ -449,10 +449,10 @@ function Row({
 }) {
   return (
     <div className="flex items-start gap-2">
-      <div className="w-44 shrink-0 text-xs text-gray-600 pt-1">
+      <div className="w-44 shrink-0 text-xs text-gray-800 pt-1">
         {label}
         {tooltip && (
-          <span className="ml-1 text-gray-400 cursor-help" title={tooltip}>
+          <span className="ml-1 text-gray-800 cursor-help" title={tooltip}>
             ⓘ
           </span>
         )}
@@ -515,7 +515,7 @@ function PctSlider({
         onChange={(e) => onChange((parseFloat(e.target.value) || 0) / 100)}
         className="w-16 border rounded px-2 py-1 text-sm"
       />
-      <span className="text-xs text-gray-500">%</span>
+      <span className="text-xs text-gray-700">%</span>
     </div>
   );
 }
@@ -545,11 +545,11 @@ function TrackFilter({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <span className="text-xs text-gray-500 font-medium">Show tracks:</span>
+      <span className="text-xs text-gray-700 font-medium">Show tracks:</span>
       <button
         onClick={() => onChange(allOn ? [TRACKS[0]] : [...TRACKS])}
         className={`text-xs px-2 py-0.5 rounded border ${
-          allOn ? "bg-gray-700 text-white border-gray-700" : "bg-white text-gray-600 border-gray-300"
+          allOn ? "bg-gray-700 text-white border-gray-700" : "bg-white text-gray-800 border-gray-300"
         }`}
       >
         All
@@ -623,6 +623,7 @@ export default function App() {
   const [inp, setInp] = useState<Inputs>(DEFAULTS);
   const [activeTracks, setActiveTracks] = useState<Track[]>([...TRACKS]);
   const [tableOpen, setTableOpen] = useState(false);
+  const [inputsPanelOpen, setInputsPanelOpen] = useState(true);
 
   const set = useCallback((path: string, val: any) => {
     setInp((prev) => {
@@ -673,17 +674,26 @@ export default function App() {
   ];
 
   return (
-    <div className="flex flex-col lg:flex-row gap-4 p-4 bg-gray-100 min-h-screen text-sm">
+    <div className="flex flex-col lg:flex-row gap-4 p-4 bg-gray-100 min-h-screen text-sm text-gray-900">
       {/* ── INPUT PANEL ── */}
-      <div className="w-full lg:w-96 shrink-0 overflow-y-auto">
+      {inputsPanelOpen && (
+      <div className="w-full lg:w-[30rem] xl:w-[34rem] shrink-0 overflow-y-auto">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-base font-bold text-blue-800">ACCESS Calculator — Inputs</h2>
-          <button
-            onClick={resetAll}
-            className="text-xs bg-red-100 text-red-700 hover:bg-red-200 border border-red-300 rounded px-3 py-1 font-medium"
-          >
-            ↺ Reset All
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={resetAll}
+              className="text-xs bg-red-100 text-red-700 hover:bg-red-200 border border-red-300 rounded px-3 py-1 font-medium"
+            >
+              ↺ Reset All
+            </button>
+            <button
+              onClick={() => setInputsPanelOpen(false)}
+              className="text-xs bg-gray-200 text-gray-800 hover:bg-gray-300 border border-gray-300 rounded px-3 py-1 font-medium"
+            >
+              Hide inputs
+            </button>
+          </div>
         </div>
 
         <Section title="Panel Size & Growth" onReset={() => resetSection("panel")}>
@@ -695,7 +705,7 @@ export default function App() {
               <NumInput value={inp.eligible[t]} onChange={(v) => set(`eligible.${t}`, v)} min={0} />
             </Row>
           ))}
-          <div className="text-xs text-gray-500 bg-gray-50 rounded p-2 space-y-0.5">
+          <div className="text-xs text-gray-700 bg-gray-50 rounded p-2 space-y-0.5">
             {TRACKS.map((t) => (
               <div key={t}>
                 {t}: <span className="font-medium">{fmtPct(prop[t])}</span> of panel
@@ -708,7 +718,7 @@ export default function App() {
           <Row label="Y3 Growth Rate">
             <PctSlider value={inp.growthY3} onChange={(v) => set("growthY3", v)} min={0} max={1} step={0.01} />
           </Row>
-          <div className="text-xs text-gray-500 bg-gray-50 rounded p-2 space-y-0.5">
+          <div className="text-xs text-gray-700 bg-gray-50 rounded p-2 space-y-0.5">
             <div className="font-medium">New eligible patients:</div>
             {TRACKS.map((t) => (
               <div key={t}>
@@ -785,13 +795,13 @@ export default function App() {
             <div className="space-y-1.5">
               {(["Y1", "Y2", "Y3"] as const).map((yr, i) => (
                 <div key={yr} className="flex items-center gap-2">
-                  <span className="text-xs text-gray-500 w-12">Year {i + 1}:</span>
+                  <span className="text-xs text-gray-700 w-12">Year {i + 1}:</span>
                   <button
                     onClick={() =>
                       setInp((p) => ({ ...p, controlGroupByYear: { ...p.controlGroupByYear, [yr]: !p.controlGroupByYear[yr] } }))
                     }
                     className={`px-3 py-0.5 rounded text-xs font-medium ${
-                      inp.controlGroupByYear[yr] ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-600"
+                      inp.controlGroupByYear[yr] ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-800"
                     }`}
                   >
                     {inp.controlGroupByYear[yr] ? "ON (10% excluded)" : "OFF"}
@@ -801,7 +811,7 @@ export default function App() {
             </div>
           </Row>
 
-          <div className="text-xs text-gray-500 bg-gray-50 rounded p-2 space-y-0.5">
+          <div className="text-xs text-gray-700 bg-gray-50 rounded p-2 space-y-0.5">
             <div className="font-medium">Peak enrolled (Cohort 1):</div>
             {TRACKS.map((t) => {
               const pen = inp.penetrationMode === "uniform" ? inp.penetrationUniform : inp.penetrationByTrack[t];
@@ -818,7 +828,7 @@ export default function App() {
           <Row label="Annual Churn Rate">
             <PctSlider value={inp.churnRate} onChange={(v) => set("churnRate", v)} min={0} max={0.5} step={0.005} />
           </Row>
-          <div className="text-xs text-gray-400 -mt-1 ml-44">Monthly: {fmtPct(inp.churnRate / 12)}</div>
+          <div className="text-xs text-gray-800 -mt-1 ml-44">Monthly: {fmtPct(inp.churnRate / 12)}</div>
           <Row label="Multi-Track Overlap" tooltip="Placeholder — pending data science team data">
             <PctSlider value={inp.overlapRate} onChange={(v) => set("overlapRate", v)} min={0} max={0.4} step={0.005} />
           </Row>
@@ -846,7 +856,7 @@ export default function App() {
         </Section>
 
         <Section title="Performance Assumptions" onReset={() => resetSection("performance")}>
-          <div className="text-xs font-semibold text-gray-600 mb-1">Outcome Attainment Rate (OAR)</div>
+          <div className="text-xs font-semibold text-gray-800 mb-1">Outcome Attainment Rate (OAR)</div>
           {TRACKS.map((t) => (
             <Row key={t} label={`${t} OAR`}>
               <PctSlider value={inp.oar[t]} onChange={(v) => set(`oar.${t}`, v)} min={0} max={1} step={0.01} />
@@ -855,8 +865,8 @@ export default function App() {
           <Row label="OAT (M19–36)" tooltip="Months 1–18 fixed at 50% per CMS rules">
             <PctSlider value={inp.oatM19to36} onChange={(v) => set("oatM19to36", v)} min={0.6} max={0.65} step={0.005} />
           </Row>
-          <div className="text-xs text-gray-400 -mt-1 ml-44">M1–18 OAT: 50% (fixed by CMS)</div>
-          <div className="text-xs font-semibold text-gray-600 mb-1 mt-2">Substitute Spend Rate (SSR)</div>
+          <div className="text-xs text-gray-800 -mt-1 ml-44">M1–18 OAT: 50% (fixed by CMS)</div>
+          <div className="text-xs font-semibold text-gray-800 mb-1 mt-2">Substitute Spend Rate (SSR)</div>
           {TRACKS.map((t) => (
             <Row key={t} label={`${t} SSR`}>
               <PctSlider value={inp.ssr[t]} onChange={(v) => set(`ssr.${t}`, v)} min={0} max={1} step={0.01} />
@@ -864,9 +874,20 @@ export default function App() {
           ))}
         </Section>
       </div>
+      )}
 
       {/* ── OUTPUT PANEL ── */}
-      <div className="flex-1 overflow-y-auto space-y-4">
+      <div className="flex-1 overflow-y-auto space-y-4 min-w-0">
+        {!inputsPanelOpen && (
+          <div className="flex justify-start">
+            <button
+              onClick={() => setInputsPanelOpen(true)}
+              className="text-xs bg-blue-600 text-white hover:bg-blue-700 border border-blue-700 rounded px-3 py-1 font-medium"
+            >
+              Show inputs
+            </button>
+          </div>
+        )}
         <div className="flex items-center justify-between flex-wrap gap-2">
           <h2 className="text-base font-bold text-blue-800">Outputs</h2>
           <div className="bg-white rounded border border-gray-200 px-3 py-2">
@@ -886,7 +907,7 @@ export default function App() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-xs text-gray-500 border-b border-gray-200">
+                <tr className="text-xs text-gray-700 border-b border-gray-200">
                   <th className="text-left py-2 pr-4 font-medium w-28"></th>
                   <th className="text-right py-2 px-3 font-medium">Gross OAP Rev</th>
                   <th className="text-right py-2 px-3 font-medium">Net OAP Rev</th>
@@ -903,7 +924,7 @@ export default function App() {
                       row.isTotal ? "font-bold bg-blue-50 border-t-2 border-t-blue-200" : "hover:bg-gray-50"
                     }`}
                   >
-                    <td className={`py-2 pr-4 text-sm ${row.isTotal ? "text-blue-800" : "text-gray-600"}`}>{row.label}</td>
+                    <td className={`py-2 pr-4 text-sm ${row.isTotal ? "text-blue-800" : "text-gray-800"}`}>{row.label}</td>
                     <td className="py-2 px-3 text-right tabular-nums">{fmt$(row.gross)}</td>
                     <td className="py-2 px-3 text-right tabular-nums">{fmt$(row.net)}</td>
                     <td className={`py-2 px-3 text-right tabular-nums font-semibold ${row.isTotal ? "text-blue-700 text-base" : "text-blue-600"}`}>
@@ -921,7 +942,7 @@ export default function App() {
         {/* Stacked Bar Chart */}
         <div className="bg-white rounded border border-gray-200 p-4">
           <h3 className="font-semibold text-sm mb-1">Pearl Net Revenue by Track & Year</h3>
-          <p className="text-xs text-gray-400 mb-3">Each segment shows a track's contribution to Pearl's net revenue per year</p>
+          <p className="text-xs text-gray-800 mb-3">Each segment shows a track's contribution to Pearl's net revenue per year</p>
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={chartData} margin={{ top: 4, right: 16, left: 16, bottom: 4 }}>
               <XAxis dataKey="year" tick={{ fontSize: 12 }} />
@@ -947,7 +968,7 @@ export default function App() {
           <div className="overflow-x-auto">
             <table className="text-xs w-full">
               <thead>
-                <tr className="bg-gray-50 text-gray-600 whitespace-nowrap">
+                <tr className="bg-gray-50 text-gray-800 whitespace-nowrap">
                   <th className="text-left px-2 py-1">Track</th>
                   <th className="px-2 py-1">Clinical OAR</th>
                   <th className="px-2 py-1">Effective OAR</th>
@@ -980,7 +1001,7 @@ export default function App() {
                       <td className="px-2 py-1 text-center">90.0%</td>
                       <td className={`px-2 py-1 text-center ${!isCoA && ssaV > 0 ? "bg-orange-100 text-orange-700" : ""}`}>{fmtPct(ssaV)}</td>
                       <td className={`px-2 py-1 text-center font-bold ${appE > 0 ? "bg-red-200 text-red-800" : "bg-green-100 text-green-700"}`}>{fmtPct(appE)}</td>
-                      <td className="px-2 py-1 text-center text-gray-500">{adj.appliedType[t]}</td>
+                      <td className="px-2 py-1 text-center text-gray-700">{adj.appliedType[t]}</td>
                     </tr>
                   );
                 })}
@@ -1007,7 +1028,7 @@ export default function App() {
             <div className="overflow-x-auto">
               <table className="text-xs w-full whitespace-nowrap">
                 <thead>
-                  <tr className="bg-gray-50 text-gray-600">
+                  <tr className="bg-gray-50 text-gray-800">
                     <th className="px-1 py-1">Mo</th>
                     <th className="px-1 py-1">Yr</th>
                     <th className="px-1 py-1">Rec</th>
