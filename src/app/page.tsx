@@ -717,10 +717,21 @@ export default function App() {
   const model = useMemo(() => runModel(inp, activeTracks), [inp, activeTracks]);
   const { kpi, adj, prop, eligByYear, newEligY2, newEligY3, months, trackRevByYear, kpiByYear } = model;
 
+  const orderedTracks = useMemo(
+    () =>
+      [...activeTracks].sort((a, b) => {
+        const totalA = trackRevByYear[a].Y1 + trackRevByYear[a].Y2 + trackRevByYear[a].Y3;
+        const totalB = trackRevByYear[b].Y1 + trackRevByYear[b].Y2 + trackRevByYear[b].Y3;
+        if (totalB !== totalA) return totalB - totalA;
+        return TRACKS.indexOf(a) - TRACKS.indexOf(b);
+      }),
+    [activeTracks, trackRevByYear]
+  );
+
   const chartData = [
-    { year: "Year 1", ...Object.fromEntries(activeTracks.map((t) => [t, trackRevByYear[t]?.Y1 ?? 0])) },
-    { year: "Year 2", ...Object.fromEntries(activeTracks.map((t) => [t, trackRevByYear[t]?.Y2 ?? 0])) },
-    { year: "Year 3", ...Object.fromEntries(activeTracks.map((t) => [t, trackRevByYear[t]?.Y3 ?? 0])) },
+    { year: "Year 1", ...Object.fromEntries(orderedTracks.map((t) => [t, trackRevByYear[t]?.Y1 ?? 0])) },
+    { year: "Year 2", ...Object.fromEntries(orderedTracks.map((t) => [t, trackRevByYear[t]?.Y2 ?? 0])) },
+    { year: "Year 3", ...Object.fromEntries(orderedTracks.map((t) => [t, trackRevByYear[t]?.Y3 ?? 0])) },
   ];
 
   const kpiTableRows = [
@@ -1012,13 +1023,13 @@ export default function App() {
               <YAxis tickFormatter={fmtYAxis} tick={{ fontSize: 11 }} width={64} />
               <Tooltip formatter={(v: any, name: any) => [fmt$(Number(v)), String(name)]} contentStyle={{ fontSize: 12 }} />
               <Legend wrapperStyle={{ fontSize: 12 }} />
-              {activeTracks.map((t) => (
+              {orderedTracks.map((t) => (
                 <Bar
                   key={t}
                   dataKey={t}
                   stackId="a"
                   fill={TRACK_COLORS[t]}
-                  radius={t === activeTracks[activeTracks.length - 1] ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                  radius={t === orderedTracks[orderedTracks.length - 1] ? [4, 4, 0, 0] : [0, 0, 0, 0]}
                 />
               ))}
             </BarChart>
