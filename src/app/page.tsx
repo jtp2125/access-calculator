@@ -145,6 +145,69 @@ type SensitivityResult = {
   max: number;
 };
 
+type ScenarioKey = "conservative" | "base" | "upside";
+
+const SCENARIO_PRESETS: Record<
+  ScenarioKey,
+  {
+    label: string;
+    blurb: string;
+    values: Pick<
+      Inputs,
+      "penetrationMode" | "penetrationUniform" | "rampPeriod" | "growthY2" | "growthY3" | "churnRate" | "oar" | "ssr" | "pearlShare"
+    >;
+  }
+> = {
+  conservative: {
+    label: "Conservative",
+    blurb:
+      "Conservative case: Assumes slower growth and slower adoption. The overall Pearl-eligible panel grows 20% in Year 2 and 20% in Year 3. Penetration is 15%, reached over an 18-month ramp, with 30% annual churn. Pearl captures 10% revenue share. Performance assumptions are cautious: OAR is 45% (eCKM/CKM) and 40% (MSK/BH), and SSR is 88% (eCKM/CKM/BH) and 86% (MSK).",
+    values: {
+      penetrationMode: "uniform",
+      penetrationUniform: 0.15,
+      rampPeriod: 18,
+      growthY2: 0.2,
+      growthY3: 0.2,
+      churnRate: 0.3,
+      oar: { eCKM: 0.45, CKM: 0.45, MSK: 0.4, BH: 0.4 },
+      ssr: { eCKM: 0.88, CKM: 0.88, MSK: 0.86, BH: 0.88 },
+      pearlShare: 0.1,
+    },
+  },
+  base: {
+    label: "Base",
+    blurb:
+      "Base case: Assumes steady growth and a reasonable adoption curve. The overall Pearl-eligible panel grows 40% in Year 2 and 40% in Year 3. Penetration is 25%, reached over a 12-month ramp, with 20% annual churn. Pearl captures 20% revenue share. Performance is in line with baseline expectations: OAR is 55% (eCKM/CKM) and 50% (MSK/BH), and SSR is 92% (eCKM/CKM/BH) and 90% (MSK).",
+    values: {
+      penetrationMode: "uniform",
+      penetrationUniform: 0.25,
+      rampPeriod: 12,
+      growthY2: 0.4,
+      growthY3: 0.4,
+      churnRate: 0.2,
+      oar: { eCKM: 0.55, CKM: 0.55, MSK: 0.5, BH: 0.5 },
+      ssr: { eCKM: 0.92, CKM: 0.92, MSK: 0.9, BH: 0.92 },
+      pearlShare: 0.2,
+    },
+  },
+  upside: {
+    label: "Upside",
+    blurb:
+      "Upside case: Assumes faster growth, faster adoption, stronger retention, and better performance. The overall Pearl-eligible panel grows 50% in Year 2 and 50% in Year 3. Penetration is 35%, reached over a 6-month ramp, with 10% annual churn. Pearl captures 30% revenue share. Performance is strong: OAR is 70% (eCKM/CKM) and 65% (MSK/BH), and SSR is 96% (eCKM/CKM/BH) and 95% (MSK).",
+    values: {
+      penetrationMode: "uniform",
+      penetrationUniform: 0.35,
+      rampPeriod: 6,
+      growthY2: 0.5,
+      growthY3: 0.5,
+      churnRate: 0.1,
+      oar: { eCKM: 0.7, CKM: 0.7, MSK: 0.65, BH: 0.65 },
+      ssr: { eCKM: 0.96, CKM: 0.96, MSK: 0.95, BH: 0.96 },
+      pearlShare: 0.3,
+    },
+  },
+};
+
 function runModel(inp: Inputs, activeTracks: Track[]) {
   const tracks: Track[] = activeTracks.length > 0 ? activeTracks : [...TRACKS];
 
@@ -774,9 +837,9 @@ function exportCSV(months: FullRow[], tracks: Track[]) {
 // ── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function App() {
   const [inp, setInp] = useState<Inputs>(DEFAULTS);
+  const [selectedScenario, setSelectedScenario] = useState<ScenarioKey>("base");
   const [activeTracks, setActiveTracks] = useState<Track[]>([...TRACKS]);
   const [tableOpen, setTableOpen] = useState(false);
-  const [inputsPanelOpen, setInputsPanelOpen] = useState(false);
   const [sensitivityConfig, setSensitivityConfig] = useState<SensitivityConfig>({
     horizon: "TOTAL",
     pearlShare: { min: 0.1, max: 0.4, step: 0.05 },
@@ -808,10 +871,27 @@ export default function App() {
     });
   }, []);
 
-  const resetAll = () => {
-    setInp(JSON.parse(JSON.stringify(DEFAULTS)));
-    setActiveTracks([...TRACKS]);
-  };
+  const [scenarioBaseline, setScenarioBaseline] = useState<Inputs>(JSON.parse(JSON.stringify(DEFAULTS)));
+
+  const applyScenario = useCallback(
+    (scenario: ScenarioKey) => {
+      const preset = SCENARIO_PRESETS[scenario].values;
+      const next: Inputs = {
+        ...inp,
+        ...preset,
+        penetrationByTrack: {
+          eCKM: preset.penetrationUniform,
+          CKM: preset.penetrationUniform,
+          MSK: preset.penetrationUniform,
+          BH: preset.penetrationUniform,
+        },
+      };
+      setSelectedScenario(scenario);
+      setInp(next);
+      setScenarioBaseline(JSON.parse(JSON.stringify(next)));
+    },
+    [inp]
+  );
 
   const updateSensitivityRange = useCallback(
     (key: "pearlShare" | "adoption", rangeKey: keyof SensitivityRange, value: number) => {
@@ -920,27 +1000,42 @@ export default function App() {
         Math.max(activeTracks.length, 1);
   const currentPearlShare = inp.pearlShare;
 
+  const scenarioCustomized = useMemo(() => {
+    return JSON.stringify(inp) !== JSON.stringify(scenarioBaseline);
+  }, [inp, scenarioBaseline]);
+
   return (
     <div className="flex flex-col lg:flex-row gap-4 p-4 min-h-screen text-sm text-gray-900">
       {/* ── INPUT PANEL ── */}
-      {inputsPanelOpen && (
       <div className="w-full lg:w-[30rem] xl:w-[34rem] shrink-0 overflow-y-auto rounded-xl border border-white/40 bg-white/70 backdrop-blur-xl shadow-[0_16px_44px_rgba(79,70,229,0.16)] p-3">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-base font-bold text-blue-800">ACCESS Calculator — Inputs</h2>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={resetAll}
-              className="text-xs bg-red-100 text-red-700 hover:bg-red-200 border border-red-300 rounded px-3 py-1 font-medium"
-            >
-              ↺ Reset All
-            </button>
-            <button
-              onClick={() => setInputsPanelOpen(false)}
-              className="text-xs bg-gray-200 text-gray-800 hover:bg-gray-300 border border-gray-300 rounded px-3 py-1 font-medium"
-            >
-              Hide inputs
-            </button>
+        </div>
+
+        <div className="mb-3 rounded-xl border border-indigo-200 bg-indigo-50/80 p-3 space-y-2">
+          <div className="flex items-center gap-2 text-xs font-semibold text-indigo-900">
+            <span>Scenario presets</span>
+            {scenarioCustomized && (
+              <span className="rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-900">
+                Customized from preset
+              </span>
+            )}
           </div>
+          <div className="flex flex-wrap gap-2">
+            {(["conservative", "base", "upside"] as const).map((scenario) => (
+              <button
+                key={scenario}
+                onClick={() => applyScenario(scenario)}
+                className={`text-xs px-3 py-1 rounded border font-medium ${
+                  selectedScenario === scenario ? "text-white border-transparent" : "bg-white text-indigo-900 border-indigo-200"
+                }`}
+                style={selectedScenario === scenario ? { backgroundImage: "var(--pearl-gradient)" } : undefined}
+              >
+                {SCENARIO_PRESETS[scenario].label}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-indigo-900 leading-relaxed">{SCENARIO_PRESETS[selectedScenario].blurb}</p>
         </div>
 
         <Section title="Panel Size & Growth" onReset={() => resetSection("panel")}>
@@ -1125,21 +1220,9 @@ export default function App() {
           ))}
         </Section>
       </div>
-      )}
 
       {/* ── OUTPUT PANEL ── */}
       <div className="flex-1 overflow-y-auto space-y-4 min-w-0 rounded-xl border border-white/40 bg-white/70 backdrop-blur-xl shadow-[0_16px_44px_rgba(79,70,229,0.16)] p-3">
-        {!inputsPanelOpen && (
-          <div className="flex justify-start">
-            <button
-              onClick={() => setInputsPanelOpen(true)}
-              className="text-xs text-white rounded-xl px-3 py-1 font-medium hover:opacity-90"
-              style={{ backgroundImage: "var(--pearl-gradient)" }}
-            >
-              Show inputs
-            </button>
-          </div>
-        )}
         <div className="flex items-center justify-between flex-wrap gap-2">
           <h2 className="text-base font-bold text-blue-800">Outputs</h2>
           <div className="bg-white/70 backdrop-blur-xl rounded-xl border border-white/40 px-3 py-2 shadow-[0_10px_30px_rgba(79,70,229,0.12)]">
