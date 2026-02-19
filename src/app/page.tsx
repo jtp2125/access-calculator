@@ -1049,7 +1049,12 @@ export default function App() {
           </Row>
           {TRACKS.map((t) => (
             <Row key={t} label={`${t} Eligible`}>
-              <NumInput value={inp.eligible[t]} onChange={(v) => set(`eligible.${t}`, v)} min={0} />
+              <input
+                type="number"
+                value={inp.eligible[t]}
+                disabled
+                className="w-full border rounded px-2 py-1 text-sm bg-gray-100 text-gray-600 cursor-not-allowed"
+              />
             </Row>
           ))}
           <div className="text-xs text-gray-700 bg-gray-50 rounded p-2 space-y-0.5">
