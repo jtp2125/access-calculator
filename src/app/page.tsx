@@ -717,7 +717,7 @@ export default function App() {
   const model = useMemo(() => runModel(inp, activeTracks), [inp, activeTracks]);
   const { kpi, adj, prop, eligByYear, newEligY2, newEligY3, months, trackRevByYear, kpiByYear } = model;
 
-  const orderedTracks = useMemo(
+  const tracksByTotalDesc = useMemo(
     () =>
       [...activeTracks].sort((a, b) => {
         const totalA = trackRevByYear[a].Y1 + trackRevByYear[a].Y2 + trackRevByYear[a].Y3;
@@ -728,10 +728,14 @@ export default function App() {
     [activeTracks, trackRevByYear]
   );
 
+  // Recharts stacks bars in reverse declaration order for vertical charts,
+  // so render smallest→largest to place the largest segment at the bottom.
+  const stackRenderOrder = useMemo(() => [...tracksByTotalDesc].reverse(), [tracksByTotalDesc]);
+
   const chartData = [
-    { year: "Year 1", ...Object.fromEntries(orderedTracks.map((t) => [t, trackRevByYear[t]?.Y1 ?? 0])) },
-    { year: "Year 2", ...Object.fromEntries(orderedTracks.map((t) => [t, trackRevByYear[t]?.Y2 ?? 0])) },
-    { year: "Year 3", ...Object.fromEntries(orderedTracks.map((t) => [t, trackRevByYear[t]?.Y3 ?? 0])) },
+    { year: "Year 1", ...Object.fromEntries(tracksByTotalDesc.map((t) => [t, trackRevByYear[t]?.Y1 ?? 0])) },
+    { year: "Year 2", ...Object.fromEntries(tracksByTotalDesc.map((t) => [t, trackRevByYear[t]?.Y2 ?? 0])) },
+    { year: "Year 3", ...Object.fromEntries(tracksByTotalDesc.map((t) => [t, trackRevByYear[t]?.Y3 ?? 0])) },
   ];
 
   const kpiTableRows = [
@@ -1023,13 +1027,14 @@ export default function App() {
               <YAxis tickFormatter={fmtYAxis} tick={{ fontSize: 11 }} width={64} />
               <Tooltip formatter={(v: any, name: any) => [fmt$(Number(v)), String(name)]} contentStyle={{ fontSize: 12 }} />
               <Legend wrapperStyle={{ fontSize: 12 }} />
-              {orderedTracks.map((t) => (
+              {stackRenderOrder.map((t) => (
                 <Bar
                   key={t}
                   dataKey={t}
                   stackId="a"
                   fill={TRACK_COLORS[t]}
-                  radius={t === orderedTracks[orderedTracks.length - 1] ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                  isAnimationActive={false}
+                  radius={t === stackRenderOrder[stackRenderOrder.length - 1] ? [4, 4, 0, 0] : [0, 0, 0, 0]}
                 />
               ))}
             </BarChart>
