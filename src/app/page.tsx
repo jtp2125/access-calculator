@@ -836,6 +836,9 @@ function exportCSV(months: FullRow[], tracks: Track[]) {
 
 // ── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function App() {
+  const [passwordInput, setPasswordInput] = useState("");
+  const [isUnlocked, setIsUnlocked] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
   const [inp, setInp] = useState<Inputs>(DEFAULTS);
   const [selectedScenario, setSelectedScenario] = useState<ScenarioKey>("base");
   const [activeTracks, setActiveTracks] = useState<Track[]>([...TRACKS]);
@@ -843,12 +846,65 @@ export default function App() {
   const [sensitivityConfig, setSensitivityConfig] = useState<SensitivityConfig>({
     horizon: "TOTAL",
     pearlShare: { min: 0.1, max: 0.4, step: 0.05 },
-    adoption: { min: 0.1, max: 0.6, step: 0.1 },
+    adoption: { min: 0.15, max: 0.6, step: 0.1 },
     showHeatmap: true,
   });
-  const [sensitivityResult, setSensitivityResult] = useState<SensitivityResult | null>(null);
-  const [sensitivityLoading, setSensitivityLoading] = useState(false);
-  const [sensitivityWarning, setSensitivityWarning] = useState<string | null>(null);
+  const { sensitivityResult, sensitivityWarning } = useMemo(() => {
+    const adoptionValues = generatePercentRange(
+      sensitivityConfig.adoption.min,
+      sensitivityConfig.adoption.max,
+      sensitivityConfig.adoption.step
+    );
+    const pearlShareValues = generatePercentRange(
+      sensitivityConfig.pearlShare.min,
+      sensitivityConfig.pearlShare.max,
+      sensitivityConfig.pearlShare.step
+    );
+
+    if (adoptionValues.length === 0 || pearlShareValues.length === 0) {
+      return {
+        sensitivityResult: null,
+        sensitivityWarning: "Please provide valid min/max/step ranges.",
+      };
+    }
+
+    const totalCells = adoptionValues.length * pearlShareValues.length;
+    if (totalCells > 120) {
+      return {
+        sensitivityResult: null,
+        sensitivityWarning: `Range too large (${totalCells} cells). Please keep it to 120 cells or fewer.`,
+      };
+    }
+
+    const rows: GridCell[][] = adoptionValues.map((adoption) => {
+      return pearlShareValues.map((pearlShare) => {
+        const nextInput: Inputs = {
+          ...inp,
+          penetrationUniform: adoption,
+          penetrationByTrack: {
+            eCKM: adoption,
+            CKM: adoption,
+            MSK: adoption,
+            BH: adoption,
+          },
+          pearlShare,
+        };
+
+        const outputs = runModel(nextInput, activeTracks);
+        const value = computePearlRevenueForHorizon(outputs, sensitivityConfig.horizon);
+        return { adoption, pearlShare, value };
+      });
+    });
+
+    const allValues = rows.flat().map((cell) => cell.value);
+    const min = Math.min(...allValues);
+    const max = Math.max(...allValues);
+
+    return {
+      sensitivityResult: { adoptionValues, pearlShareValues, rows, min, max },
+      sensitivityWarning: null,
+    };
+  }, [activeTracks, inp, sensitivityConfig]);
 
   const set = useCallback((path: string, val: any) => {
     setInp((prev) => {
@@ -906,64 +962,6 @@ export default function App() {
     []
   );
 
-  const runSensitivity = useCallback(() => {
-    const adoptionValues = generatePercentRange(
-      sensitivityConfig.adoption.min,
-      sensitivityConfig.adoption.max,
-      sensitivityConfig.adoption.step
-    );
-    const pearlShareValues = generatePercentRange(
-      sensitivityConfig.pearlShare.min,
-      sensitivityConfig.pearlShare.max,
-      sensitivityConfig.pearlShare.step
-    );
-
-    if (adoptionValues.length === 0 || pearlShareValues.length === 0) {
-      setSensitivityWarning("Please provide valid min/max/step ranges.");
-      setSensitivityResult(null);
-      return;
-    }
-
-    const totalCells = adoptionValues.length * pearlShareValues.length;
-    if (totalCells > 120) {
-      setSensitivityWarning(`Range too large (${totalCells} cells). Please keep it to 120 cells or fewer.`);
-      setSensitivityResult(null);
-      return;
-    }
-
-    setSensitivityWarning(null);
-    setSensitivityLoading(true);
-
-    setTimeout(() => {
-      const rows: GridCell[][] = adoptionValues.map((adoption) => {
-        return pearlShareValues.map((pearlShare) => {
-          const nextInput: Inputs = {
-            ...inp,
-            penetrationUniform: adoption,
-            penetrationByTrack: {
-              eCKM: adoption,
-              CKM: adoption,
-              MSK: adoption,
-              BH: adoption,
-            },
-            pearlShare,
-          };
-
-          const outputs = runModel(nextInput, activeTracks);
-          const value = computePearlRevenueForHorizon(outputs, sensitivityConfig.horizon);
-          return { adoption, pearlShare, value };
-        });
-      });
-
-      const allValues = rows.flat().map((cell) => cell.value);
-      const min = Math.min(...allValues);
-      const max = Math.max(...allValues);
-
-      setSensitivityResult({ adoptionValues, pearlShareValues, rows, min, max });
-      setSensitivityLoading(false);
-    }, 0);
-  }, [activeTracks, inp, sensitivityConfig]);
-
   const model = useMemo(() => runModel(inp, activeTracks), [inp, activeTracks]);
   const { kpi, adj, prop, months, trackRevByYear, kpiByYear } = model;
 
@@ -1003,6 +1001,43 @@ export default function App() {
   const scenarioCustomized = useMemo(() => {
     return JSON.stringify(inp) !== JSON.stringify(scenarioBaseline);
   }, [inp, scenarioBaseline]);
+
+  if (!isUnlocked) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4">
+        <form
+          className="w-full max-w-sm rounded-xl border border-white/40 bg-white/80 p-6 shadow-[0_16px_44px_rgba(79,70,229,0.16)] space-y-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (passwordInput === "oyster*2026") {
+              setIsUnlocked(true);
+              setPasswordError(null);
+              return;
+            }
+            setPasswordError("Incorrect password. Please try again.");
+          }}
+        >
+          <h1 className="text-lg font-bold text-blue-800">ACCESS Calculator</h1>
+          <p className="text-sm text-gray-700">Enter password to access the page.</p>
+          <input
+            type="password"
+            value={passwordInput}
+            onChange={(e) => setPasswordInput(e.target.value)}
+            className="w-full border rounded px-3 py-2 text-sm"
+            placeholder="Password"
+          />
+          {passwordError && <p className="text-xs text-red-700">{passwordError}</p>}
+          <button
+            type="submit"
+            className="w-full text-sm text-white px-3 py-2 rounded-xl hover:opacity-90"
+            style={{ backgroundImage: "var(--pearl-gradient)" }}
+          >
+            Unlock
+          </button>
+        </form>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col lg:flex-row gap-4 p-4 min-h-screen text-sm text-gray-900">
@@ -1486,14 +1521,7 @@ export default function App() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={runSensitivity}
-              className="text-xs text-white px-3 py-1 rounded-xl hover:opacity-90"
-              style={{ backgroundImage: "var(--pearl-gradient)" }}
-              disabled={sensitivityLoading}
-            >
-              {sensitivityLoading ? "Running…" : "Run Sensitivity"}
-            </button>
+            <span className="text-xs text-gray-700">Sensitivity auto-updates when inputs change.</span>
             <button
               onClick={() => sensitivityResult && downloadSensitivityCSV(sensitivityResult)}
               className="text-xs text-white px-3 py-1 rounded hover:opacity-90 disabled:opacity-50"
