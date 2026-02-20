@@ -1405,11 +1405,11 @@ export default function App() {
           actions={
             <button
               onClick={() => sensitivityResult && downloadSensitivityCSV(sensitivityResult)}
-              className="text-xs text-white px-3 py-1 rounded hover:opacity-90 disabled:opacity-50"
+              className="text-xs text-white px-3 py-1 rounded-xl hover:opacity-90 disabled:opacity-50"
               style={{ backgroundImage: "var(--pearl-gradient)" }}
               disabled={!sensitivityResult}
             >
-              Download CSV
+              Export CSV
             </button>
           }
         >
