@@ -636,6 +636,34 @@ function Section({
   );
 }
 
+function OutputSection({
+  title,
+  children,
+  actions,
+}: {
+  title: string;
+  children: React.ReactNode;
+  actions?: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(true);
+
+  return (
+    <div className="rounded-xl bg-white/70 backdrop-blur-xl border border-white/40 shadow-[0_10px_30px_rgba(79,70,229,0.12)]">
+      <div className="flex items-center px-3 py-2 border-l-[3px] border-indigo-600">
+        <button
+          className="flex-1 text-left font-bold text-black text-sm flex items-center gap-1"
+          onClick={() => setOpen((o) => !o)}
+        >
+          <span>{open ? "▲" : "▼"}</span>
+          <span>{title}</span>
+        </button>
+        {actions}
+      </div>
+      {open && <div className="px-4 py-3 space-y-3">{children}</div>}
+    </div>
+  );
+}
+
 function Row({
   label,
   children,
@@ -842,7 +870,6 @@ export default function App() {
   const [inp, setInp] = useState<Inputs>(DEFAULTS);
   const [selectedScenario, setSelectedScenario] = useState<ScenarioKey>("base");
   const [activeTracks, setActiveTracks] = useState<Track[]>([...TRACKS]);
-  const [tableOpen, setTableOpen] = useState(false);
   const [sensitivityConfig, setSensitivityConfig] = useState<SensitivityConfig>({
     horizon: "TOTAL",
     pearlShare: { min: 0.1, max: 0.4, step: 0.05 },
@@ -1262,8 +1289,7 @@ export default function App() {
         )}
 
         {/* KPI Summary Table */}
-        <div className="bg-white/70 backdrop-blur-xl rounded-xl border border-white/40 p-4 shadow-[0_10px_30px_rgba(79,70,229,0.12)]">
-          <h3 className="font-semibold text-sm mb-3">Summary Metrics by Year</h3>
+        <OutputSection title="Summary Metrics by Year">
           <div className="overflow-x-auto">
             <table className="w-full text-sm border-t-4" style={{ borderImage: "var(--pearl-gradient) 1" }}>
               <thead>
@@ -1302,12 +1328,11 @@ export default function App() {
               </tbody>
             </table>
           </div>
-        </div>
+        </OutputSection>
 
         {/* Stacked Bar Chart */}
-        <div className="bg-white/70 backdrop-blur-xl rounded-xl border border-white/40 p-4 shadow-[0_10px_30px_rgba(79,70,229,0.12)]">
-          <h3 className="font-semibold text-sm mb-1">Pearl Net Revenue by Track & Year</h3>
-          <p className="text-xs text-gray-800 mb-3">Each segment shows a track's contribution to Pearl's net revenue per year</p>
+        <OutputSection title="Pearl Net Revenue by Track & Year">
+          <p className="text-xs text-gray-800">Each segment shows a track&apos;s contribution to Pearl&apos;s net revenue per year</p>
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={chartData} margin={{ top: 4, right: 16, left: 16, bottom: 4 }}>
               <XAxis dataKey="year" tick={{ fontSize: 12 }} />
@@ -1325,11 +1350,10 @@ export default function App() {
               ))}
             </BarChart>
           </ResponsiveContainer>
-        </div>
+        </OutputSection>
 
         {/* Adjustment Transparency Table */}
-        <div className="bg-white/70 backdrop-blur-xl rounded-xl border border-white/40 p-3 shadow-[0_10px_30px_rgba(79,70,229,0.12)]">
-          <h3 className="font-semibold text-sm mb-2">Performance Adjustment Transparency</h3>
+        <OutputSection title="Performance Adjustment Transparency">
           <div className="overflow-x-auto">
             <table className="text-xs w-full">
               <thead>
@@ -1373,11 +1397,22 @@ export default function App() {
               </tbody>
             </table>
           </div>
-        </div>
+        </OutputSection>
 
         {/* Sensitivity Analysis */}
-        <div className="bg-white/70 backdrop-blur-xl rounded-xl border border-white/40 p-4 space-y-3 shadow-[0_10px_30px_rgba(79,70,229,0.12)]">
-          <h3 className="font-semibold text-sm">Sensitivity Analysis</h3>
+        <OutputSection
+          title="Sensitivity Analysis"
+          actions={
+            <button
+              onClick={() => sensitivityResult && downloadSensitivityCSV(sensitivityResult)}
+              className="text-xs text-white px-3 py-1 rounded-xl hover:opacity-90 disabled:opacity-50"
+              style={{ backgroundImage: "var(--pearl-gradient)" }}
+              disabled={!sensitivityResult}
+            >
+              Export CSV
+            </button>
+          }
+        >
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
             <div>
@@ -1520,18 +1555,7 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs text-gray-700">Sensitivity auto-updates when inputs change.</span>
-            <button
-              onClick={() => sensitivityResult && downloadSensitivityCSV(sensitivityResult)}
-              className="text-xs text-white px-3 py-1 rounded hover:opacity-90 disabled:opacity-50"
-              style={{ backgroundImage: "var(--pearl-gradient)" }}
-              disabled={!sensitivityResult}
-            >
-              Download CSV
-            </button>
-            {sensitivityWarning && <span className="text-xs text-amber-700">⚠ {sensitivityWarning}</span>}
-          </div>
+          {sensitivityWarning && <div className="text-xs text-amber-700">⚠ {sensitivityWarning}</div>}
 
           {sensitivityResult && (
             <div className="space-y-2">
@@ -1628,14 +1652,12 @@ export default function App() {
               </p>
             </div>
           )}
-        </div>
+        </OutputSection>
 
         {/* Monthly Data Table */}
-        <div className="bg-white/70 backdrop-blur-xl rounded-xl border border-white/40 p-3 shadow-[0_10px_30px_rgba(79,70,229,0.12)]">
-          <div className="flex justify-between items-center mb-2">
-            <button className="font-semibold text-sm flex items-center gap-1" onClick={() => setTableOpen((o) => !o)}>
-              Month-by-Month Data {tableOpen ? "▲" : "▼"}
-            </button>
+        <OutputSection
+          title="Month-by-Month Data"
+          actions={
             <button
               onClick={() => exportCSV(months, activeTracks)}
               className="text-xs text-white px-3 py-1 rounded-xl hover:opacity-90"
@@ -1643,10 +1665,9 @@ export default function App() {
             >
               Export CSV
             </button>
-          </div>
-
-          {tableOpen && (
-            <div className="overflow-x-auto">
+          }
+        >
+          <div className="overflow-x-auto">
               <table className="text-xs w-full whitespace-nowrap">
                 <thead>
                   <tr className="bg-gray-50 text-gray-800">
@@ -1716,8 +1737,7 @@ export default function App() {
                 </tbody>
               </table>
             </div>
-          )}
-        </div>
+        </OutputSection>
       </div>
     </div>
   );
